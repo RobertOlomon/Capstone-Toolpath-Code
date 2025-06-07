@@ -32,6 +32,10 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
                                      disable_intermediate_collision=True):
     """@brief Plan a collision-free cleaning toolpath.
 
+    For each scan point this routine evaluates multiple candidate part
+    orientations and selects the pose with the best combined cost while
+    ensuring the EE and laser beam remain collision free.
+
     @param cleaning_points Array of cleaning point positions.
     @param cleaning_normals Array of corresponding normals.
     @param part_origin Global origin of the part.
@@ -72,10 +76,29 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
     laser_beam_base = get_laser_beam_mesh(scan_size_for_beam_check, offset=offset, offset_margin=offset_margin_for_beam_check)
 
     def check_ee_vs_env_obstacle_collision(T_candidateEE_global):
+        """@brief Test EE pose against environment obstacles.
+
+        Transforms the base EE box to ``T_candidateEE_global`` and consults
+        ``env_collision_manager`` for any intersections with static obstacles.
+
+        @param T_candidateEE_global 4x4 pose matrix of the EE.
+
+        @return ``True`` if a collision occurs.
+        """
         if env_collision_manager is None or not env_collision_manager._objs: return False
         return candidate_collision_check_trimesh(T_candidateEE_global, ee_box_base, env_collision_manager)
 
     def check_ee_vs_part_collision(T_candidateEE_global, R_part_global_mat):
+        """@brief Test EE pose against the rotating part mesh.
+
+        The candidate EE box is transformed into part coordinates and checked
+        for intersection with ``stl_mesh`` using ``cm_part_check``.
+
+        @param T_candidateEE_global EE pose to test.
+        @param R_part_global_mat    3x3 rotation matrix of the part.
+
+        @return ``True`` if a collision occurs.
+        """
         if stl_mesh is None or stl_mesh.is_empty or not cm_part_check._objs: return False
         
         ee_box_global = ee_box_base.copy()
@@ -93,6 +116,16 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
         return cm_part_check.in_collision_single(ee_box_in_part_local_frame)
 
     def check_collisions_with_chuck(T_candidateEE_global, R_part_global_mat):
+        """@brief Test EE pose against the chuck and laser beam.
+
+        The chuck is transformed into the global frame and checked for
+        collisions with both the EE box and the laser beam volume.
+
+        @param T_candidateEE_global EE pose to test.
+        @param R_part_global_mat    3x3 rotation matrix of the part.
+
+        @return ``True`` if any chuck collision occurs.
+        """
         if local_chuck_mesh is None or local_chuck_mesh.is_empty:
             return False
 

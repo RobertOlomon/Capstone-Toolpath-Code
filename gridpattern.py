@@ -26,6 +26,9 @@ from sklearn.cluster import DBSCAN
 def farthest_point_sampling(pts, r):
     """@brief Farthest point sampling of a point set.
 
+    Iteratively picks the point farthest from those already selected until all
+    remaining points are within ``r`` of a chosen sample.
+
     @param pts Array of points ``(N x 3)``.
     @param r   Distance threshold.
 
@@ -51,6 +54,9 @@ def farthest_point_sampling(pts, r):
 def compute_vertex_curvature(mesh, k=20):
     """@brief Estimate per-vertex curvature from normal variation.
 
+    For each vertex the normals of its ``k`` nearest neighbours are compared
+    with the vertex normal to quantify how much the surface bends.
+
     @param mesh Mesh to evaluate.
     @param k    Number of nearest neighbors.
 
@@ -73,6 +79,9 @@ def compute_vertex_curvature(mesh, k=20):
 def segment_cylindrical_region(mesh, curvature_threshold=0.1):
     """@brief Identify cylindrical vertices via curvature.
 
+    Vertices with curvature below ``curvature_threshold`` are labelled as
+    belonging to cylindrical areas of the mesh.
+
     @param mesh Mesh to evaluate.
     @param curvature_threshold Maximum curvature value considered cylindrical.
 
@@ -84,6 +93,9 @@ def segment_cylindrical_region(mesh, curvature_threshold=0.1):
 
 def tile_cylindrical_region_with_ends(mesh, scan_size):
     """@brief Tile a cylindrical region including its ends.
+
+    Estimates the cylinder axis and radius and returns evenly spaced points
+    around the lateral surface as well as on the end caps.
 
     @param mesh Mesh object.
     @param scan_size Desired grid spacing.
@@ -142,6 +154,9 @@ def tile_cylindrical_region_with_ends(mesh, scan_size):
 def tile_planar_region(region_pts, scan_size):
     """@brief Tile a planar region with a grid.
 
+    Fits a plane to ``region_pts`` and generates a square grid of points and
+    outward normals covering the entire region.
+
     @param region_pts Points belonging to the planar region.
     @param scan_size  Grid spacing.
 
@@ -173,6 +188,9 @@ def tile_planar_region(region_pts, scan_size):
 # =============================================================================
 def region_grow_planar_faces(mesh, normal_threshold=np.deg2rad(5), min_region_size=50):
     """@brief Grow planar face regions based on normal similarity.
+
+    Starting from each unvisited face, neighboring faces with similar
+    orientation are iteratively added to form planar patches.
 
     @param mesh Mesh object.
     @param normal_threshold Maximum allowed angular difference in radians.
@@ -233,6 +251,9 @@ def region_grow_planar_faces(mesh, normal_threshold=np.deg2rad(5), min_region_si
 def detect_and_tile_planar_regions_new(mesh, normal_threshold=np.deg2rad(5), min_region_size=50, scan_size=25):
     """@brief Detect planar regions and tile them with a grid.
 
+    Regions of nearly constant normal are extracted via region growing and each
+    is covered by a grid of scan points with spacing ``scan_size``.
+
     @param mesh Mesh object.
     @param normal_threshold Tolerance for face normal differences.
     @param min_region_size Minimum faces required for a region.
@@ -285,6 +306,9 @@ def detect_and_tile_planar_regions_new(mesh, normal_threshold=np.deg2rad(5), min
 def poisson_disc_sampling(points, min_distance):
     """@brief Perform Poisson disc sampling on a point set.
 
+    Randomly permutes the points and iteratively selects one while removing
+    neighbors within ``min_distance`` to maintain a uniform distribution.
+
     @param points Array of points.
     @param min_distance Minimum allowed distance between points.
 
@@ -307,6 +331,9 @@ def poisson_disc_sampling(points, min_distance):
 
 def redundancy_filter(points, min_distance):
     """@brief Remove points that are closer than ``min_distance``.
+
+    Uses a KD-tree to discard points that lie within ``min_distance`` of
+    any previously kept point.
 
     @param points Array of points.
     @param min_distance Distance threshold.
@@ -333,6 +360,9 @@ def redundancy_filter(points, min_distance):
 def generate_optimal_scan_points_hybrid(stl_file, scan_size, N_candidates=30000, factor_non_cyl=0.5,
                                           debug_only_cyl=False, debug_single_row=False):
     """@brief Generate scan points using a hybrid approach.
+
+    Combines cylindrical tiling, planar region detection and Poisson disc
+    sampling to achieve good coverage of complex parts.
 
     @param stl_file Path to the STL file.
     @param scan_size Grid spacing for scan points.
@@ -499,6 +529,9 @@ def generate_optimal_scan_points_hybrid(stl_file, scan_size, N_candidates=30000,
 # =============================================================================
 def visualize_detected_surfaces(mesh, scan_size=25, normal_threshold=np.deg2rad(5), min_region_size=50):
     """@brief Visualize detected planar surfaces using Plotly.
+
+    Shows clusters of planar faces and their normals to assist with debugging
+    of the planar region detection logic.
 
     @param mesh Mesh object.
     @param scan_size Grid spacing for tiling.

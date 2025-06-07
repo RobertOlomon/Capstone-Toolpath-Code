@@ -27,7 +27,11 @@ from scan_utils import reorder_scan_points_by_normals
 import gridpattern
 
 def main():
-    """@brief Entry point for toolpath planning demo."""
+    """@brief Entry point for toolpath planning demo.
+
+    Demonstrates the complete workflow from loading the part mesh to generating
+    and animating a collision-free cleaning toolpath.
+    """
 
     # --- Debug Flags and High-Level Parameters ---
     debug_flip_part = True        

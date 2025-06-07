@@ -12,6 +12,9 @@ from orientation import compute_EE_orientation # Used for interpolation
 def interpolate_toolpath_steps(toolpath, scan_spacing=10.0, tol_angle=1e-3, tol_normal=1e-3):
     """@brief Interpolate groups of similar toolpath steps.
 
+    Consecutive steps with similar orientation are grouped and replaced by a
+    set of evenly spaced scans to create smoother motion of the end effector.
+
     @param toolpath       List of 8-element step tuples.
     @param scan_spacing   Desired distance between interpolated poses.
     @param tol_angle      Angle tolerance in degrees.
@@ -23,6 +26,13 @@ def interpolate_toolpath_steps(toolpath, scan_spacing=10.0, tol_angle=1e-3, tol_
     group = [] 
     
     def process_group(grp):
+        """@brief Interpolate or copy a sequence of steps.
+
+        Groups with more than one step are interpolated. Single steps are
+        transferred directly to the output without modification.
+
+        @param grp List of step tuples to process.
+        """
         if not grp: return
 
         if len(grp) > 1: 
@@ -102,6 +112,9 @@ def interpolate_toolpath_steps(toolpath, scan_spacing=10.0, tol_angle=1e-3, tol_
 
 def reorder_scan_points_by_normals(points, normals, eps=0.3, min_samples=5):
     """@brief Cluster and reorder scan points by their normals.
+
+    Points are grouped using DBSCAN in the space of normalized normals and
+    then greedily ordered within each cluster to minimize travel distance.
 
     @param points   Array of points.
     @param normals  Array of normals corresponding to the points.
@@ -193,6 +206,10 @@ def classify_step_scanned_points(step, scanned_count, dense_pts_local, dense_nor
                                  part_origin, part_y_axis, part_center,
                                  scan_size, offset, offset_margin):
     """@brief Simulate scanning for a single toolpath step.
+
+    The dense point cloud of the part is transformed into the EE frame of the
+    given step. Points lying within the scanning volume and roughly aligned with
+    the tool orientation are marked as scanned.
 
     @param step             Toolpath step tuple.
     @param scanned_count    Array counting how many times each dense point was scanned.

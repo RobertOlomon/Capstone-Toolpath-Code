@@ -11,6 +11,9 @@ from scipy.spatial.transform import Rotation as R
 def create_box_mesh(extents, pose=np.eye(4)):
     """@brief Create a box mesh.
 
+    Builds a convex hull from the eight corner points defined by ``extents``
+    and applies ``pose`` to transform the mesh.
+
     @param extents List ``[x_min, x_max, y_min, y_max, z_min, z_max]``.
     @param pose    4x4 transform applied to the box.
 
@@ -27,6 +30,9 @@ def create_box_mesh(extents, pose=np.eye(4)):
 def get_ee_box_mesh(ee_box_extents):
     """@brief Generate the EE collision box mesh.
 
+    Convenience wrapper around ``create_box_mesh`` that does not apply any
+    transform.
+
     @param ee_box_extents List ``[x_min, x_max, y_min, y_max, z_min, z_max]``.
 
     @return ``trimesh.Trimesh`` representing the EE box.
@@ -40,6 +46,9 @@ def get_ee_box_mesh(ee_box_extents):
 
 def get_laser_beam_mesh(scan_size, offset=200, offset_margin=5):
     """@brief Generate the laser beam volume mesh.
+
+    Creates a rectangular prism representing the laser scanning volume
+    located ``offset`` millimeters from the part.
 
     @param scan_size Size of the scanning square in X and Y.
     @param offset Nominal EE to part distance.
@@ -59,6 +68,8 @@ def get_laser_beam_mesh(scan_size, offset=200, offset_margin=5):
 def create_cylinder_mesh(radius, height, sections=32, pose=np.eye(4)):
     """@brief Create a cylinder mesh aligned with the Z-axis.
 
+    The cylinder is generated along the Z-axis and then transformed by ``pose``.
+
     @param radius   Cylinder radius.
     @param height   Cylinder height.
     @param sections Number of facets.
@@ -72,6 +83,8 @@ def create_cylinder_mesh(radius, height, sections=32, pose=np.eye(4)):
 
 def get_chuck_mesh(part_mesh, diameter, length_into_part, length_away_from_part):
     """@brief Create the chuck collision mesh.
+
+    Models a simple cylindrical chuck aligned with the part's local Y-axis.
 
     The chuck is aligned with the part's local Y-axis and centered on the front
     Y-plane.

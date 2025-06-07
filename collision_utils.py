@@ -36,6 +36,10 @@ def build_collision_manager(part_mesh, table_mesh=None, back_wall_mesh=None, cei
 def candidate_collision_check_trimesh(EE_pose, ee_box_mesh, collision_manager):
     """@brief Check if an EE pose collides with any obstacle.
 
+    This function transforms ``ee_box_mesh`` to ``EE_pose`` and queries
+    ``collision_manager`` to determine if the candidate end effector would
+    intersect any objects.
+
     @param EE_pose        4x4 pose matrix for the candidate EE.
     @param ee_box_mesh    Base EE collision box mesh.
     @param collision_manager Collision manager with obstacles.

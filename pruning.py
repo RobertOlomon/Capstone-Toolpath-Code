@@ -12,6 +12,9 @@ def prune_toolpath_steps(toolpath, dense_pts_local, dense_normals,
                          scan_size, offset, offset_margin):
     """@brief Prune toolpath steps based on simulated scan coverage.
 
+    Each step is evaluated to determine which dense surface points it scans.
+    Steps that contribute no new coverage are removed from the toolpath.
+
     @param toolpath          Input list of toolpath steps.
     @param dense_pts_local   Dense point cloud in part frame.
     @param dense_normals     Normals of the dense cloud.

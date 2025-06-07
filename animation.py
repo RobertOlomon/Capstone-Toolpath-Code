@@ -16,19 +16,41 @@ from collision_utils import candidate_collision_check_trimesh
 
 
 def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
-                     local_chuck_mesh=None, 
-                     chuck_pullback_distance=500.0, 
+                     local_chuck_mesh=None,
+                     chuck_pullback_distance=500.0,
                      offset=200, axis_length=400, scan_size=25, frame_duration=50,
                      ee_box_extents=[-140, 444.5, -130, 280, -257, 88],
                      table_mesh=None, back_wall_mesh=None, ceiling_mesh=None, right_wall_mesh=None,
                      offset_margin=5, display_animation=True, collision_manager=None,
                      debug_obstacles_only=False,
                      split_animation_halves=True): # New flag to control splitting
-    """
-    Animates the toolpath or displays a static scene.
-    If split_animation_halves is True, the animation is divided into two figures
-    showing the first and second temporal halves of the toolpath.
-    A final plot shows cumulative scan coverage.
+    """@brief Visualize the planned toolpath using Plotly.
+
+    This function creates 3D animations of the end-effector, part and
+    environment. When ``split_animation_halves`` is ``True`` the sequence is
+    divided into two figures for improved performance.
+
+    @param toolpath              List of step tuples to animate.
+    @param stl_mesh              Mesh of the part.
+    @param part_origin           Global origin of the part.
+    @param part_y_axis           Rotation axis of the part.
+    @param part_center           Local rotation center.
+    @param local_chuck_mesh      Chuck mesh or ``None``.
+    @param chuck_pullback_distance Distance to retract the chuck when needed.
+    @param offset                Nominal EE offset distance.
+    @param axis_length           Length of the drawn coordinate axes.
+    @param scan_size             Size of the scan area square.
+    @param frame_duration        Duration of each animation frame.
+    @param ee_box_extents        EE collision box extents.
+    @param table_mesh            Optional table mesh.
+    @param back_wall_mesh        Optional back wall mesh.
+    @param ceiling_mesh          Optional ceiling mesh.
+    @param right_wall_mesh       Optional right wall mesh.
+    @param offset_margin         Depth tolerance for scanning volume.
+    @param display_animation     Show figures interactively if ``True``.
+    @param collision_manager     Environment collision manager.
+    @param debug_obstacles_only  Only render static obstacles when ``True``.
+    @param split_animation_halves Split animation into two halves when ``True``.
     """
     # --- Shared Setup for Bounds and Debug View ---
     # ... (Bounds calculation and debug_obstacles_only block remains the same as before) ...
@@ -247,6 +269,14 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
         num_total_frames = len(all_animation_frames)
         
         def create_animation_figure(frames_subset, title_prefix, frame_offset=0):
+            """@brief Create a Plotly figure for a subset of frames.
+
+            @param frames_subset List of ``go.Frame`` objects.
+            @param title_prefix  Text prefix for the figure title.
+            @param frame_offset  Starting index offset for slider labels.
+
+            @return ``plotly.graph_objects.Figure`` or ``None`` if no frames.
+            """
             if not frames_subset:
                 return None
             
