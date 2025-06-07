@@ -24,9 +24,15 @@ from mesh_utils import create_box_mesh, get_chuck_mesh
 from animation import animate_toolpath
 from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
-import gridpattern # Importing gridpattern for scan point generation
+import gridpattern
 
 def main():
+    """@brief Entry point for toolpath planning demo.
+
+    Demonstrates the complete workflow from loading the part mesh to generating
+    and animating a collision-free cleaning toolpath.
+    """
+
     # --- Debug Flags and High-Level Parameters ---
     debug_flip_part = True        
     debug_obstacles_only = False    
