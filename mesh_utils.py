@@ -9,35 +9,27 @@ import trimesh
 from scipy.spatial.transform import Rotation as R
 
 def create_box_mesh(extents, pose=np.eye(4)):
-    """
-    Creates a convex-hull box mesh from given extents and pose.
+    """@brief Create a box mesh.
 
-    Parameters:
-        extents (list): [x_min, x_max, y_min, y_max, z_min, z_max].
-        pose (np.ndarray): 4x4 transformation matrix to apply to the box (default identity).
+    @param extents List ``[x_min, x_max, y_min, y_max, z_min, z_max]``.
+    @param pose    4x4 transform applied to the box.
 
-    Returns:
-        trimesh.Trimesh: Transformed box mesh.
+    @return Transformed ``trimesh.Trimesh`` object.
     """
     x_min, x_max, y_min, y_max, z_min, z_max = extents
     vertices = np.array([[x, y, z] for x in (x_min, x_max)
                                     for y in (y_min, y_max)
                                     for z in (z_min, z_max)])
-    # Create a Trimesh object from vertices and compute its convex hull
     box = trimesh.Trimesh(vertices=vertices, process=False).convex_hull
     box.apply_transform(pose)
     return box
 
 def get_ee_box_mesh(ee_box_extents):
-    """
-    Generates the end-effector (EE) collision box mesh based on extents.
-    The mesh is created at the origin, without any transformation.
+    """@brief Generate the EE collision box mesh.
 
-    Parameters:
-        ee_box_extents (list): [x_min, x_max, y_min, y_max, z_min, z_max].
+    @param ee_box_extents List ``[x_min, x_max, y_min, y_max, z_min, z_max]``.
 
-    Returns:
-        trimesh.Trimesh: EE collision box mesh.
+    @return ``trimesh.Trimesh`` representing the EE box.
     """
     x_min, x_max, y_min, y_max, z_min, z_max = ee_box_extents
     vertices = np.array([[x, y, z] for x in (x_min, x_max)
@@ -47,17 +39,13 @@ def get_ee_box_mesh(ee_box_extents):
     return ee_box
 
 def get_laser_beam_mesh(scan_size, offset=200, offset_margin=5):
-    """
-    Generates a mesh representing the laser beam (scanning volume).
-    The mesh is created at the origin, assuming the EE's Z-axis points towards the part.
+    """@brief Generate the laser beam volume mesh.
 
-    Parameters:
-        scan_size (float): Size of the scanning square (X and Y dimensions).
-        offset (float): Nominal offset distance from the EE origin to the part surface (along Z).
-        offset_margin (float): Tolerance in the offset distance, defining the depth of the scan volume.
+    @param scan_size Size of the scanning square in X and Y.
+    @param offset Nominal EE to part distance.
+    @param offset_margin Depth tolerance of the scan volume.
 
-    Returns:
-        trimesh.Trimesh: Mesh for the laser beam volume.
+    @return ``trimesh.Trimesh`` for the laser beam.
     """
     x_min = -scan_size / 2
     x_max = scan_size / 2
@@ -69,55 +57,44 @@ def get_laser_beam_mesh(scan_size, offset=200, offset_margin=5):
     return create_box_mesh(extents, np.eye(4))
 
 def create_cylinder_mesh(radius, height, sections=32, pose=np.eye(4)):
-    """
-    Creates a cylinder mesh.
-    The cylinder is created with its axis along Z.
+    """@brief Create a cylinder mesh aligned with the Z-axis.
 
-    Parameters:
-        radius (float): Radius of the cylinder.
-        height (float): Height of the cylinder.
-        sections (int): Number of facets.
-        pose (np.ndarray): 4x4 transformation matrix to apply.
+    @param radius   Cylinder radius.
+    @param height   Cylinder height.
+    @param sections Number of facets.
+    @param pose     4x4 transform applied to the cylinder.
 
-    Returns:
-        trimesh.Trimesh: Transformed cylinder mesh.
+    @return Transformed ``trimesh.Trimesh`` cylinder.
     """
     cyl = trimesh.creation.cylinder(radius=radius, height=height, sections=sections)
     cyl.apply_transform(pose)
     return cyl
 
 def get_chuck_mesh(part_mesh, diameter, length_into_part, length_away_from_part):
-    """
-    Creates the chuck collision mesh, positioned relative to the part's front face
-    and aligned with the part's local Y-axis.
+    """@brief Create the chuck collision mesh.
 
-    The chuck is a cylinder. Its local Y-axis aligns with the part's local Y-axis.
-    Its center is on the part's front Y-plane, at the part's XZ centroid of overall bounds.
+    The chuck is aligned with the part's local Y-axis and centered on the front
+    Y-plane.
 
-    Parameters:
-        part_mesh (trimesh.Trimesh): The mesh of the part. Used for positioning.
-        diameter (float): Diameter of the chuck cylinder.
-        length_into_part (float): Length the chuck extends from front face towards part's -Y.
-        length_away_from_part (float): Length the chuck extends from front face towards part's +Y.
+    @param part_mesh            Mesh of the part.
+    @param diameter             Chuck diameter.
+    @param length_into_part     Length extending toward ``-Y``.
+    @param length_away_from_part Length extending toward ``+Y``.
 
-    Returns:
-        trimesh.Trimesh: The chuck mesh in the part's local coordinate system.
-                         Returns an empty Trimesh if part_mesh is empty or total length is zero.
+    @return ``trimesh.Trimesh`` for the chuck or an empty mesh when dimensions
+    are invalid.
     """
     if part_mesh is None or part_mesh.is_empty:
-        # print("Warning: part_mesh is None or empty in get_chuck_mesh. Returning empty chuck.")
         return trimesh.Trimesh()
 
     radius = diameter / 2.0
     total_chuck_length = length_into_part + length_away_from_part
 
-    if total_chuck_length <= 1e-6: 
-        # print("Warning: Chuck total length is near zero. Returning empty chuck.")
+    if total_chuck_length <= 1e-6:
         return trimesh.Trimesh()
 
     part_bounds = part_mesh.bounds
-    # INSTEAD OF part_xz_centroid_of_bounds:
-    part_local_geometric_centroid = part_mesh.centroid 
+    part_local_geometric_centroid = part_mesh.centroid
 
     mesh_local_front_y_coord = part_bounds[1, 1] 
     y_center_of_chuck_cylinder_local = mesh_local_front_y_coord + (length_away_from_part - length_into_part) / 2.0

@@ -8,18 +8,17 @@ import trimesh
 from trimesh.collision import CollisionManager
 
 def build_collision_manager(part_mesh, table_mesh=None, back_wall_mesh=None, ceiling_mesh=None, right_wall_mesh=None):
-    """
-    Builds a collision manager by adding the part and obstacle meshes.
+    """@brief Build a collision manager with optional obstacles.
 
-    Obstacle meshes are added as their convex hulls for efficiency.
+    Obstacle meshes are added using their convex hulls.
 
-    Parameters:
-        part_mesh (trimesh.Trimesh): Mesh for the part.
-        table_mesh, back_wall_mesh, ceiling_mesh, right_wall_mesh (optional): 
-            Meshes for the obstacles.
+    @param part_mesh Mesh of the part.
+    @param table_mesh Optional table mesh.
+    @param back_wall_mesh Optional back wall mesh.
+    @param ceiling_mesh Optional ceiling mesh.
+    @param right_wall_mesh Optional right wall mesh.
 
-    Returns:
-        trimesh.collision.CollisionManager: Configured collision manager.
+    @return ``CollisionManager`` with all objects added.
     """
     cm = CollisionManager()
     if part_mesh is not None:
@@ -35,18 +34,14 @@ def build_collision_manager(part_mesh, table_mesh=None, back_wall_mesh=None, cei
     return cm
 
 def candidate_collision_check_trimesh(EE_pose, ee_box_mesh, collision_manager):
-    """
-    Checks if a candidate end-effector pose (applied to its collision box) 
-    collides with any obstacle in the collision manager.
+    """@brief Check if an EE pose collides with any obstacle.
 
-    Parameters:
-        EE_pose (np.ndarray): 4x4 transformation matrix for the candidate EE pose.
-        ee_box_mesh (trimesh.Trimesh): The base EE collision box mesh.
-        collision_manager (CollisionManager): Collision manager containing obstacles.
+    @param EE_pose        4x4 pose matrix for the candidate EE.
+    @param ee_box_mesh    Base EE collision box mesh.
+    @param collision_manager Collision manager with obstacles.
 
-    Returns:
-        bool: True if collision detected, False otherwise.
+    @return ``True`` if a collision is detected.
     """
-    candidate = ee_box_mesh.copy() # Create a copy to avoid modifying the original EE box
+    candidate = ee_box_mesh.copy()
     candidate.apply_transform(EE_pose)
     return collision_manager.in_collision_single(candidate)

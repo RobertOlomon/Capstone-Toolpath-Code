@@ -24,16 +24,12 @@ from sklearn.cluster import DBSCAN
 # Farthest Point Sampling
 # =============================================================================
 def farthest_point_sampling(pts, r):
-    """
-    Selects points from a set using farthest point sampling until all points
-    are within distance r of a selected point.
+    """@brief Farthest point sampling of a point set.
 
-    Parameters:
-        pts (np.ndarray): Array of points (N x 3).
-        r (float): Distance threshold.
+    @param pts Array of points ``(N x 3)``.
+    @param r   Distance threshold.
 
-    Returns:
-        list: Indices of selected points.
+    @return Indices of the selected points.
     """
     pts = np.array(pts)
     N = pts.shape[0]
@@ -53,15 +49,12 @@ def farthest_point_sampling(pts, r):
 # Vertex Curvature Estimation
 # =============================================================================
 def compute_vertex_curvature(mesh, k=20):
-    """
-    Computes an approximate curvature for each vertex based on differences in normals.
+    """@brief Estimate per-vertex curvature from normal variation.
 
-    Parameters:
-        mesh (trimesh.Trimesh): Mesh object.
-        k (int): Number of nearest neighbors to consider.
+    @param mesh Mesh to evaluate.
+    @param k    Number of nearest neighbors.
 
-    Returns:
-        np.ndarray: Array of curvature values.
+    @return Array of curvature values.
     """
     vertices = mesh.vertices
     normals = mesh.vertex_normals
@@ -78,32 +71,24 @@ def compute_vertex_curvature(mesh, k=20):
 # Cylindrical Region Tiling
 # =============================================================================
 def segment_cylindrical_region(mesh, curvature_threshold=0.1):
-    """
-    Determines which vertices in the mesh are part of a cylindrical region
-    based on curvature.
+    """@brief Identify cylindrical vertices via curvature.
 
-    Parameters:
-        mesh (trimesh.Trimesh): Mesh object.
-        curvature_threshold (float): Maximum curvature for a vertex to be considered cylindrical.
+    @param mesh Mesh to evaluate.
+    @param curvature_threshold Maximum curvature value considered cylindrical.
 
-    Returns:
-        np.ndarray: Boolean mask for cylindrical vertices.
+    @return Boolean mask for cylindrical vertices.
     """
     curvatures = compute_vertex_curvature(mesh, k=20)
     return curvatures < curvature_threshold
 
 
 def tile_cylindrical_region_with_ends(mesh, scan_size):
-    """
-    Tiles a cylindrical region (including the ends) on the lateral surface.
-    
-    Parameters:
-        mesh (trimesh.Trimesh): Mesh object.
-        scan_size (float): Desired grid spacing.
-    
-    Returns:
-        lateral_pts (np.ndarray): Generated scan points on the cylinder.
-        lateral_normals (np.ndarray): Associated normals for the scan points.
+    """@brief Tile a cylindrical region including its ends.
+
+    @param mesh Mesh object.
+    @param scan_size Desired grid spacing.
+
+    @return ``lateral_pts`` and ``lateral_normals`` arrays.
     """
     cyl_mask = segment_cylindrical_region(mesh, curvature_threshold=0.1)
     if not np.any(cyl_mask):
@@ -155,16 +140,12 @@ def tile_cylindrical_region_with_ends(mesh, scan_size):
 # Planar Region Tiling
 # =============================================================================
 def tile_planar_region(region_pts, scan_size):
-    """
-    Tiles a given planar region with a grid based on its principal directions.
-    
-    Parameters:
-        region_pts (np.ndarray): Points belonging to the planar region.
-        scan_size (float): Spacing for the grid.
-    
-    Returns:
-        plane_pts (np.ndarray): Generated grid points on the plane.
-        plane_normals (np.ndarray): Constant normals for the plane.
+    """@brief Tile a planar region with a grid.
+
+    @param region_pts Points belonging to the planar region.
+    @param scan_size  Grid spacing.
+
+    @return ``plane_pts`` and ``plane_normals`` arrays.
     """
     center = np.mean(region_pts, axis=0)
     U, S, Vt = np.linalg.svd(region_pts - center)
@@ -191,16 +172,13 @@ def tile_planar_region(region_pts, scan_size):
 # Planar Face Region Growing and Detection
 # =============================================================================
 def region_grow_planar_faces(mesh, normal_threshold=np.deg2rad(5), min_region_size=50):
-    """
-    Grows connected regions of faces with similar normals to detect flat surfaces.
-    
-    Parameters:
-        mesh (trimesh.Trimesh): Mesh object.
-        normal_threshold (float): Maximum angular difference (radians) allowed between faces.
-        min_region_size (int): Minimum number of faces to form a valid region.
-    
-    Returns:
-        list: A list of regions, where each region is a list of face indices.
+    """@brief Grow planar face regions based on normal similarity.
+
+    @param mesh Mesh object.
+    @param normal_threshold Maximum allowed angular difference in radians.
+    @param min_region_size Minimum number of faces for a region.
+
+    @return List of regions (each a list of face indices).
     """
     face_normals = mesh.face_normals
     n_faces = len(mesh.faces)
@@ -253,19 +231,14 @@ def region_grow_planar_faces(mesh, normal_threshold=np.deg2rad(5), min_region_si
 
 
 def detect_and_tile_planar_regions_new(mesh, normal_threshold=np.deg2rad(5), min_region_size=50, scan_size=25):
-    """
-    Detects flat regions via face region growing and then clusters these regions into
-    individual planar surfaces. Each surface is then tiled with a grid.
-    
-    Parameters:
-        mesh (trimesh.Trimesh): Mesh object.
-        normal_threshold (float): Tolerance for face normal differences.
-        min_region_size (int): Minimum number of faces for a region.
-        scan_size (float): Grid spacing for tiling.
-    
-    Returns:
-        planar_pts (np.ndarray): Scan points for all detected planar regions.
-        planar_normals (np.ndarray): Associated normals (averaged for each surface).
+    """@brief Detect planar regions and tile them with a grid.
+
+    @param mesh Mesh object.
+    @param normal_threshold Tolerance for face normal differences.
+    @param min_region_size Minimum faces required for a region.
+    @param scan_size Grid spacing for tiling.
+
+    @return ``planar_pts`` and ``planar_normals`` arrays.
     """
     regions = region_grow_planar_faces(mesh, normal_threshold, min_region_size)
     planar_pts_list = []
@@ -310,15 +283,12 @@ def detect_and_tile_planar_regions_new(mesh, normal_threshold=np.deg2rad(5), min
 # Poisson Disc Sampling and Redundancy Filtering
 # =============================================================================
 def poisson_disc_sampling(points, min_distance):
-    """
-    Performs Poisson disc sampling on a set of points to enforce a minimum distance.
+    """@brief Perform Poisson disc sampling on a point set.
 
-    Parameters:
-        points (np.ndarray): Array of points.
-        min_distance (float): Minimum allowed distance between points.
+    @param points Array of points.
+    @param min_distance Minimum allowed distance between points.
 
-    Returns:
-        np.ndarray: Subset of points after sampling.
+    @return Subset of the points after sampling.
     """
     if points.shape[0] == 0:
         return points
@@ -336,15 +306,12 @@ def poisson_disc_sampling(points, min_distance):
 
 
 def redundancy_filter(points, min_distance):
-    """
-    Filters out redundant points that are closer than the specified minimum distance.
+    """@brief Remove points that are closer than ``min_distance``.
 
-    Parameters:
-        points (np.ndarray): Array of points.
-        min_distance (float): Distance threshold.
+    @param points Array of points.
+    @param min_distance Distance threshold.
 
-    Returns:
-        np.ndarray: Filtered points.
+    @return Filtered points.
     """
     if points.shape[0] == 0:
         return points
@@ -365,22 +332,16 @@ def redundancy_filter(points, min_distance):
 # =============================================================================
 def generate_optimal_scan_points_hybrid(stl_file, scan_size, N_candidates=30000, factor_non_cyl=0.5,
                                           debug_only_cyl=False, debug_single_row=False):
-    """
-    Loads an STL file and generates scan points using a hybrid approach.
-    
-    Parameters:
-        stl_file (str): Path to the STL file.
-        scan_size (float): Grid spacing for scan points.
-        N_candidates (int): Number of candidate points for initial sampling.
-        factor_non_cyl (float): Factor to adjust spacing for non-cylindrical regions.
-        debug_only_cyl (bool): If True, only returns the cylindrical scan points.
-        debug_single_row (bool): If True (with debug_only_cyl=True), returns only one row
-                                 (i.e. one constant theta) of the cylindrical points.
-        
-    Returns:
-        scan_points (np.ndarray): Array of scan point positions.
-        scan_normals (np.ndarray): Array of corresponding normals.
-        mesh (trimesh.Trimesh): Loaded mesh.
+    """@brief Generate scan points using a hybrid approach.
+
+    @param stl_file Path to the STL file.
+    @param scan_size Grid spacing for scan points.
+    @param N_candidates Number of candidate points for initial sampling.
+    @param factor_non_cyl Spacing factor for non‑cylindrical regions.
+    @param debug_only_cyl If ``True``, return only cylindrical points.
+    @param debug_single_row If ``True`` with ``debug_only_cyl``, return a single row.
+
+    @return ``scan_points``, ``scan_normals`` and the loaded ``mesh``.
     """
     import trimesh
     from scipy.spatial import cKDTree, KDTree
@@ -537,15 +498,12 @@ def generate_optimal_scan_points_hybrid(stl_file, scan_size, N_candidates=30000,
 # Visualization of Detected Flat Surfaces
 # =============================================================================
 def visualize_detected_surfaces(mesh, scan_size=25, normal_threshold=np.deg2rad(5), min_region_size=50):
-    """
-    Detects flat surfaces on the mesh using region growing and DBSCAN clustering,
-    and visualizes the detected surfaces along with their normals using Plotly.
+    """@brief Visualize detected planar surfaces using Plotly.
 
-    Parameters:
-        mesh (trimesh.Trimesh): Mesh object.
-        scan_size (float): Grid spacing for tiling.
-        normal_threshold (float): Tolerance for grouping face normals.
-        min_region_size (int): Minimum faces required for a valid region.
+    @param mesh Mesh object.
+    @param scan_size Grid spacing for tiling.
+    @param normal_threshold Tolerance for grouping face normals.
+    @param min_region_size Minimum faces required for a valid region.
     """
     surfaces = []
     normals_info = []

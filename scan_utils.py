@@ -10,25 +10,14 @@ from sklearn.cluster import DBSCAN
 from orientation import compute_EE_orientation # Used for interpolation
 
 def interpolate_toolpath_steps(toolpath, scan_spacing=10.0, tol_angle=1e-3, tol_normal=1e-3):
-    """
-    Interpolates groups of consecutive toolpath steps that share nearly identical
-    part rotation angles, cleaning normals, and MUST_PULL_BACK_flag.
+    """@brief Interpolate groups of similar toolpath steps.
 
-    Replaces such groups with a series of steps interpolated between the group's
-    start and end EE positions. Interpolated steps are flagged.
+    @param toolpath       List of 8-element step tuples.
+    @param scan_spacing   Desired distance between interpolated poses.
+    @param tol_angle      Angle tolerance in degrees.
+    @param tol_normal     Normal vector tolerance.
 
-    Parameters:
-        toolpath (list): List of toolpath steps. Each step is an 8-element tuple:
-            (EE_pos, EE_quat, angle, clean_pt, normal, class, unreach, MUST_PULL_BACK_flag)
-        scan_spacing (float): Desired distance between interpolated EE positions (mm).
-        tol_angle (float): Tolerance for comparing part rotation angles (degrees).
-        tol_normal (float): Tolerance for comparing normal vectors (L2 norm of difference).
-    
-    Returns:
-        list: A new toolpath list where groups are replaced by interpolated steps.
-              All steps in the returned list are 11-element tuples:
-              (EE_pos, EE_quat, angle, clean_pt, normal, "interpolated", unreach, 
-               MUST_PULL_BACK_flag_from_group, True (interp_flag), new_pts_empty, double_pts_empty)
+    @return New toolpath list containing interpolated 11-element step tuples.
     """
     new_toolpath = []
     group = [] 
@@ -112,10 +101,14 @@ def interpolate_toolpath_steps(toolpath, scan_spacing=10.0, tol_angle=1e-3, tol_
     return new_toolpath
 
 def reorder_scan_points_by_normals(points, normals, eps=0.3, min_samples=5):
-    """
-    Reorders scan points by first clustering them based on similar normal vectors
-    using DBSCAN, then ordering points within each cluster using a greedy
-    nearest-neighbor approach.
+    """@brief Cluster and reorder scan points by their normals.
+
+    @param points   Array of points.
+    @param normals  Array of normals corresponding to the points.
+    @param eps      DBSCAN epsilon parameter.
+    @param min_samples Minimum samples for DBSCAN.
+
+    @return Reordered ``points`` and ``normals`` arrays.
     """
     if points is None or normals is None or len(points) == 0 or len(normals) == 0:
         return np.empty((0,3)), np.empty((0,3))
@@ -199,8 +192,20 @@ def reorder_scan_points_by_normals(points, normals, eps=0.3, min_samples=5):
 def classify_step_scanned_points(step, scanned_count, dense_pts_local, dense_normals,
                                  part_origin, part_y_axis, part_center,
                                  scan_size, offset, offset_margin):
-    """
-    Simulates scanning for a single toolpath step.
+    """@brief Simulate scanning for a single toolpath step.
+
+    @param step             Toolpath step tuple.
+    @param scanned_count    Array counting how many times each dense point was scanned.
+    @param dense_pts_local  Dense point cloud in the part frame.
+    @param dense_normals    Normals of the dense point cloud.
+    @param part_origin      Global part origin.
+    @param part_y_axis      Part rotation axis.
+    @param part_center      Local rotation center.
+    @param scan_size        Scanning area size.
+    @param offset           Nominal EE to part distance.
+    @param offset_margin    Scan depth tolerance.
+
+    @return Newly scanned points and points scanned more than once.
     """
     pos, quat, angle, _cleaning_point, chosen_normal, _classification, _unreachable = step[:7]
 

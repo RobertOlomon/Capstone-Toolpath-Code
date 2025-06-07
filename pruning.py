@@ -10,37 +10,21 @@ from scan_utils import classify_step_scanned_points # Core function for simulati
 def prune_toolpath_steps(toolpath, dense_pts_local, dense_normals,
                          part_origin, part_y_axis, part_center,
                          scan_size, offset, offset_margin):
-    """
-    Prunes the toolpath by retaining only steps that contribute to new scan coverage.
+    """@brief Prune toolpath steps based on simulated scan coverage.
 
-    It simulates the scanning process for each step using `classify_step_scanned_points`
-    and keeps a step if it scans any new points on a dense representation of the part.
-    
-    Input steps can be 8-element (from planner) or 11-element (from interpolation).
-    Output steps are always 11-element tuples.
-    
-    Parameters:
-        toolpath (list): Input list of toolpath steps.
-                         8-elem: (EE_pos, EE_quat, angle, clean_pt, normal, class, unreach, MUST_PULL_BACK)
-                         11-elem: (..., MUST_PULL_BACK, interp_flag, new_pts, double_pts)
-        dense_pts_local (np.ndarray): (N,3) Dense point cloud of the part in its local frame.
-        dense_normals (np.ndarray): (N,3) Normals for the dense point cloud.
-        part_origin (np.ndarray): Global origin of the part at angle=0.
-        part_y_axis (np.ndarray): Global axis of part rotation.
-        part_center (np.ndarray): Local pivot point for part rotation.
-        scan_size (float): Scanning area size for simulation.
-        offset (float): Nominal EE-to-part distance for simulation.
-        offset_margin (float): Scan depth tolerance for simulation.
-    
-    Returns:
-        list: A new list of toolpath steps (`pruned_steps`). Each step is an 11-element tuple:
-              (EE_pos, EE_quat, angle, clean_pt, normal, class, unreach, 
-               MUST_PULL_BACK_flag, interpolation_flag, 
-               new_points_array, double_points_array)
-              Only steps that scan new points are included (unless they are marked as interpolated).
+    @param toolpath          Input list of toolpath steps.
+    @param dense_pts_local   Dense point cloud in part frame.
+    @param dense_normals     Normals of the dense cloud.
+    @param part_origin       Global origin of the part.
+    @param part_y_axis       Global rotation axis of the part.
+    @param part_center       Local pivot point for rotation.
+    @param scan_size         Scanning area size.
+    @param offset            Nominal EE to part distance.
+    @param offset_margin     Scan depth tolerance.
+
+    @return New list of 11-element step tuples containing only useful scans.
     """
-    if dense_pts_local.shape[0] == 0: 
-        # print("Warning: Pruning with empty dense_pts_local. All steps will have empty new/double points, retaining original steps.")
+    if dense_pts_local.shape[0] == 0:
         processed_steps_for_no_dense_pts = []
         for step_data in toolpath:
             current_len = len(step_data)
@@ -89,9 +73,7 @@ def prune_toolpath_steps(toolpath, dense_pts_local, dense_normals,
             must_pull_back_flag = step_data[7]
             interpolation_flag = step_data[8]
             # Note: we are using newly_scanned_pts from the current classification, not old_new_pts from interpolator.
-        else: 
-            # Fallback for unexpected length
-            # print(f"Warning: Pruning encountered step_data with unexpected length {current_len}.")
+        else:
             must_pull_back_flag = step_data[7] if current_len > 7 else False
             interpolation_flag = step_data[8] if current_len > 8 else False
             
