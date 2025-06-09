@@ -1,0 +1,7 @@
+numpy
+scipy
+trimesh
+plotly
+scikit-learn
+tqdm
+pyserial
