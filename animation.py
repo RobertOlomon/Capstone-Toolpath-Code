@@ -244,12 +244,11 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
         ))
     
     # --- Configure and Display Animation(s) ---
-    if display_animation and all_animation_frames:
-        num_total_frames = len(all_animation_frames)
-        
-        def create_animation_figure(frames_subset, title_prefix, frame_offset=0):
-            if not frames_subset:
-                return None
+    num_total_frames = len(all_animation_frames)
+
+    def create_animation_figure(frames_subset, title_prefix, frame_offset=0):
+        if not frames_subset:
+            return None
             
             slider_ctrl_steps = []
             for i, anim_frame in enumerate(frames_subset):
