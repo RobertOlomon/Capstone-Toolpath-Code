@@ -8,6 +8,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import trimesh
 from tqdm import tqdm
+from typing import Callable
 from trimesh.collision import CollisionManager
 
 from constants import DEBUG_INTERPOLATE_TOOLPATH
@@ -28,8 +29,9 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
                                      env_collision_manager=None, 
                                      scan_size_for_beam_check=25, 
                                      offset_margin_for_beam_check=5, 
-                                     coarse_step=20, fine_step=5, fine_delta=20, 
-                                     disable_intermediate_collision=True):
+                                      coarse_step=20, fine_step=5, fine_delta=20,
+                                      disable_intermediate_collision=True,
+                                      progress_callback: Callable[[int, int], None] | None = None):
     """
     Main routine for planning the collision-free toolpath.
     
@@ -104,10 +106,16 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
         print("Warning: No cleaning points provided to plan_toolpath.")
         return []
 
-    for local_pt_raw, local_norm_raw in tqdm(zip(cleaning_points, cleaning_normals),
-                                       total=len(cleaning_points),
-                                       desc="Toolpath planning progress"):
-        local_pt = np.asarray(local_pt_raw) 
+    for idx, (local_pt_raw, local_norm_raw) in enumerate(
+        tqdm(
+            zip(cleaning_points, cleaning_normals),
+            total=len(cleaning_points),
+            desc="Toolpath planning progress",
+        )
+    ):
+        if progress_callback:
+            progress_callback(idx + 1, len(cleaning_points))
+        local_pt = np.asarray(local_pt_raw)
         local_norm = np.asarray(local_norm_raw)
 
         best_overall_cost = np.inf
