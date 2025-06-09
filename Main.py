@@ -26,7 +26,7 @@ from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
 import gridpattern
 
-def main():
+def main(stl_file_path="TorpedoMockup.STL"):
     """@brief Entry point for toolpath planning demo.
 
     Demonstrates the complete workflow from loading the part mesh to generating
@@ -38,7 +38,6 @@ def main():
     debug_obstacles_only = False    
 
     # --- Part and Environment Setup ---
-    stl_file_path = r"C:\Users\robbi\Documents\STL\TorpedoMockup.stl" 
 
     part_front_surface_global_origin = np.array([1050, 0, 250]) 
     
@@ -281,4 +280,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    stl_path_cli = sys.argv[1] if len(sys.argv) > 1 else "TorpedoMockup.STL"
+    main(stl_path_cli)
