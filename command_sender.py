@@ -4,11 +4,21 @@ import time
 import queue
 import sys
 import transmitter
+import serial.tools.list_ports
+from typing import Optional
 
-PORT = "COM9"
 BAUD = 921600
 PRINT_HZ = 30
 ACK_MSG = "At Pos"
+
+def detect_serial_port() -> Optional[str]:
+    for port in serial.tools.list_ports.comports():
+        desc = (port.description or "").lower()
+        if any(key in desc for key in ("arduino", "ch340", "cp210", "usb")):
+            return port.device
+        if port.device.lower().startswith(("/dev/ttyacm", "/dev/ttyusb")):
+            return port.device
+    return None
 
 def reader_task(ser, log_q: queue.Queue):
     """Background thread to continuously read from the serial port."""
@@ -59,7 +69,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("gcode_file", nargs="?", help="path to gcode text file")
     args = parser.parse_args(argv)
 
-    tx = transmitter.Transmitter(PORT, BAUD, write_timeout=None, timeout=None)
+    port = detect_serial_port()
+    if port is None:
+        print("No Arduino/ESP32 serial device found")
+        return
+    tx = transmitter.Transmitter(port, BAUD, write_timeout=None, timeout=None)
     log_q: queue.Queue[str] = queue.Queue()
     threading.Thread(target=reader_task, args=(tx.serial, log_q), daemon=True).start()
 
