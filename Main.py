@@ -26,13 +26,14 @@ from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
 import gridpattern # Importing gridpattern for scan point generation
 
-def main():
+def main(stl_file_path=None):
     # --- Debug Flags and High-Level Parameters ---
     debug_flip_part = True        
     debug_obstacles_only = False    
 
     # --- Part and Environment Setup ---
-    stl_file_path = r"C:\Users\robbi\Documents\STL\TorpedoMockup.stl" 
+    if stl_file_path is None:
+        stl_file_path = r"C:\Users\robbi\Documents\STL\TorpedoMockup.stl"
 
     part_front_surface_global_origin = np.array([1050, 0, 250]) 
     
@@ -244,8 +245,8 @@ def main():
     axis_length_for_viz = 180 
     animation_frame_duration_ms = 50 
 
-    animate_toolpath(
-        toolpath=pruned_toolpath_steps, 
+    figs = animate_toolpath(
+        toolpath=pruned_toolpath_steps,
         stl_mesh=processed_stl_mesh, 
         part_origin=part_global_center_origin, 
         part_y_axis=part_turntable_y_axis, 
@@ -263,7 +264,8 @@ def main():
         display_animation=True,
         collision_manager=env_collision_manager if env_collision_manager and env_collision_manager._objs else None, 
         debug_obstacles_only=debug_obstacles_only,
-        split_animation_halves=True
+        split_animation_halves=True,
+        return_figures=True
     )
 
     # Clean up temporary file
@@ -272,6 +274,8 @@ def main():
             os.remove(temp_scaled_stl_file)
         except OSError as e:
             print(f"Error removing temporary file {temp_scaled_stl_file}: {e}")
+
+    return figs
 
 
 if __name__ == "__main__":
