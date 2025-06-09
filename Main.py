@@ -26,7 +26,7 @@ from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
 import gridpattern # Importing gridpattern for scan point generation
 
-def main(stl_file_path=None, display_animation=True):
+def main(stl_file_path=None, display_animation=True, progress_callback=None):
     # --- Debug Flags and High-Level Parameters ---
     np.random.seed(0)
     debug_flip_part = True
@@ -175,7 +175,8 @@ def main(stl_file_path=None, display_animation=True):
         scan_size_for_beam_check=scan_area_size,
         offset_margin_for_beam_check=offset_margin_for_beam,
         coarse_step=20,
-        disable_intermediate_collision=True
+        disable_intermediate_collision=True,
+        progress_callback=progress_callback
     )
 
     # --- 5. Prune Toolpath and Generate Dense Cloud for Simulation ---

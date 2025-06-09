@@ -28,12 +28,13 @@ import queue
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Callable
 
 import numpy as np
 from PyQt6 import QtWidgets, QtWebEngineWidgets
-from PyQt6.QtCore import Qt, QUrl, QEvent
+from PyQt6.QtCore import Qt, QUrl, QEvent, QTimer, pyqtSignal, QObject, QThread
 import plotly.io as pio
+import serial.tools.list_ports
 
 # ---------------------------------------------------------------------------
 # QtWebEngine compatibility shim (PyQt 6 moved QWebEngineSettings)
@@ -76,9 +77,19 @@ import Main                                            # noqa: E402 – tool-pat
 # Configurable constants
 ###############################################################################
 
-PORT = "COM9"                        # Serial port for the robot
 BAUD = 921_600                       # Baud rate
 CHUCK_DRAWBACK_DISTANCE_MM = 30.0    # How far to pull back on MUST_PULL_BACK
+
+def detect_serial_port() -> Optional[str]:
+    """Return the first serial port that looks like an Arduino/ESP32."""
+    for port in serial.tools.list_ports.comports():
+        desc = (port.description or "").lower()
+        if any(key in desc for key in ("arduino", "ch340", "cp210", "usb")):
+            return port.device
+        # fallback to ttyACM/ttyUSB naming
+        if port.device.lower().startswith(("/dev/ttyacm", "/dev/ttyusb")):
+            return port.device
+    return None
 
 ###############################################################################
 # Plotly helpers
@@ -169,12 +180,18 @@ def convert_npy_to_gcode(
 def run_toolpath(
     npy_path: os.PathLike | str,
     drawback_dist: float = CHUCK_DRAWBACK_DISTANCE_MM,
+    port: Optional[str] = None,
 ) -> None:
     """Stream a command array to the robot over serial."""
+    if port is None:
+        port = detect_serial_port()
+    if port is None:
+        raise RuntimeError("No Arduino/ESP32 serial device found")
+
     steps = np.load(npy_path)
     robot = Robot()
 
-    tx = transmitter.Transmitter(PORT, BAUD, write_timeout=None, timeout=None)
+    tx = transmitter.Transmitter(port, BAUD, write_timeout=None, timeout=None)
     log_q: "queue.Queue[str]" = queue.Queue()
     threading.Thread(target=reader_task, args=(tx.serial, log_q), daemon=True).start()
 
@@ -216,6 +233,32 @@ def run_toolpath(
     _send("G01 A0 Y0")
     _send("G01 A0 Y0 C0")
 
+
+class PlanWorker(QThread):
+    progress = pyqtSignal(int, int)
+    finished = pyqtSignal(object, list)
+    error = pyqtSignal(str)
+
+    def __init__(self, stl_path: str) -> None:
+        super().__init__()
+        self.stl_path = stl_path
+
+    def run(self) -> None:
+        try:
+            with _suppress_plotly_show():
+                ret = Main.main(
+                    self.stl_path,
+                    display_animation=False,
+                    progress_callback=self._on_progress,
+                )
+            path, figs = ToolpathGUI._normalize_main_return(ret)
+            self.finished.emit(path, figs)
+        except Exception as exc:  # pragma: no cover - gui
+            self.error.emit(str(exc))
+
+    def _on_progress(self, current: int, total: int) -> None:
+        self.progress.emit(current, total)
+
 ###############################################################################
 # Qt main window
 ###############################################################################
@@ -239,6 +282,10 @@ class ToolpathGUI(QtWidgets.QWidget):
         btn_row.addWidget(self.btn_gen)
         vbox.addLayout(btn_row)
 
+        # Serial connection status
+        self.status_label = QtWidgets.QLabel()
+        vbox.addWidget(self.status_label)
+
         # Web view for Plotly
         self.web = QtWebEngineWidgets.QWebEngineView()
         settings = self.web.settings()
@@ -251,6 +298,20 @@ class ToolpathGUI(QtWidgets.QWidget):
         )
         vbox.addWidget(self.web, 1)
 
+        self.loading_label = QtWidgets.QLabel("Loading")
+        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_label.setVisible(False)
+        vbox.addWidget(self.loading_label)
+        self.loading_timer = QTimer(self)
+        self.loading_timer.timeout.connect(self._animate_loading)
+        self._loading_dots = 0
+        self.web.loadFinished.connect(self._stop_loading_animation)
+
+        # Progress bar for planning
+        self.progress = QtWidgets.QProgressBar()
+        self.progress.setVisible(False)
+        vbox.addWidget(self.progress)
+
         # Run button
         self.btn_run = QtWidgets.QPushButton("Run Toolpath")
         self.btn_run.setEnabled(False)
@@ -259,11 +320,52 @@ class ToolpathGUI(QtWidgets.QWidget):
         # ---------------- Internal state ----------------
         self.npy_path: Optional[Path] = None
         self.temp_html_path: Optional[str] = None  # To store the path to the temp file
+        self.serial_port: Optional[str] = detect_serial_port()
+
+        self._update_serial_status()
+        self.status_timer = QTimer(self)
+        self.status_timer.timeout.connect(self._update_serial_status)
+        self.status_timer.start(3000)
 
         # ---------------- Signals ----------------
         self.btn_load.clicked.connect(self.load_existing)
         self.btn_gen.clicked.connect(self.generate_toolpath)
         self.btn_run.clicked.connect(self.execute_toolpath)
+
+    def _update_serial_status(self) -> None:
+        self.serial_port = detect_serial_port()
+        if self.serial_port:
+            self.status_label.setText(f"Arduino detected on {self.serial_port}")
+        else:
+            self.status_label.setText("No Arduino/ESP32 detected")
+
+    def _on_plan_progress(self, current: int, total: int) -> None:
+        self.progress.setMaximum(total)
+        self.progress.setValue(current)
+
+    def _on_plan_finished(self, npy_path: Path, figs: list) -> None:
+        self.npy_path = npy_path
+        self.progress.setVisible(False)
+        self.btn_run.setEnabled(True)
+        self._show_figures(figs)
+
+    def _on_plan_error(self, msg: str) -> None:
+        self.progress.setVisible(False)
+        QtWidgets.QMessageBox.critical(self, "Error", msg)
+
+    def _animate_loading(self) -> None:
+        self._loading_dots = (self._loading_dots + 1) % 4
+        self.loading_label.setText("Loading" + "." * self._loading_dots)
+
+    def _start_loading_animation(self) -> None:
+        self._loading_dots = 0
+        self.loading_label.setText("Loading")
+        self.loading_label.setVisible(True)
+        self.loading_timer.start(300)
+
+    def _stop_loading_animation(self, _ok: bool) -> None:
+        self.loading_timer.stop()
+        self.loading_label.setVisible(False)
 
     # ------------------------------------------------------------------
     # Helper: display figures in the embedded browser
@@ -294,7 +396,8 @@ class ToolpathGUI(QtWidgets.QWidget):
         ) as f:
             self.temp_html_path = f.name
             f.write(html)
-        
+
+        self._start_loading_animation()
         self.web.load(QUrl.fromLocalFile(os.path.abspath(self.temp_html_path)))
 
     # ------------------------------------------------------------------
@@ -339,22 +442,14 @@ class ToolpathGUI(QtWidgets.QWidget):
         )
         if not stl_path:
             return
+        self.progress.setVisible(True)
+        self.progress.setValue(0)
 
-        # Run the planner (could be lengthy—consider threading)
-        with _suppress_plotly_show():
-            # Pass display_animation=False so the backend returns the figures
-            # instead of trying to show them itself.
-            ret = Main.main(stl_path, display_animation=False)
-
-        try:
-            npy_path, figs = self._normalize_main_return(ret)
-        except Exception as exc:  # broad, but we want to GUI-notify
-            QtWidgets.QMessageBox.critical(self, "Error", str(exc))
-            return
-
-        self.npy_path = npy_path
-        self.btn_run.setEnabled(True)
-        self._show_figures(figs)
+        self.worker = PlanWorker(stl_path)
+        self.worker.progress.connect(self._on_plan_progress)
+        self.worker.finished.connect(self._on_plan_finished)
+        self.worker.error.connect(self._on_plan_error)
+        self.worker.start()
 
     # ------------------------------------------------------------------
     # Slot: execute the loaded/generated tool-path
@@ -364,11 +459,17 @@ class ToolpathGUI(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(self, "No path", "Load or generate a tool-path first.")
             return
 
+        if self.serial_port is None:
+            QtWidgets.QMessageBox.warning(self, "No device", "No Arduino/ESP32 detected.")
+            return
+
         self.btn_run.setEnabled(False)
 
         def _worker():
             try:
-                run_toolpath(self.npy_path)
+                run_toolpath(self.npy_path, port=self.serial_port)
+            except Exception as exc:
+                QtWidgets.QMessageBox.critical(self, "Error", str(exc))
             finally:
                 # Re-enable button when done by posting a custom event to the main thread
                 QtWidgets.QApplication.instance().postEvent(
