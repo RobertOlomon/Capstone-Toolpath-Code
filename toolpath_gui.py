@@ -33,6 +33,7 @@ from typing import List, Optional, Sequence, Tuple, Callable
 import numpy as np
 from PyQt6 import QtWidgets, QtWebEngineWidgets
 from PyQt6.QtCore import Qt, QUrl, QEvent, QTimer, pyqtSignal, QObject, QThread
+import socket
 import plotly.io as pio
 import serial.tools.list_ports
 
@@ -90,6 +91,14 @@ def detect_serial_port() -> Optional[str]:
         if port.device.lower().startswith(("/dev/ttyacm", "/dev/ttyusb")):
             return port.device
     return None
+
+def is_robot_connected(host: str = "192.168.100.50", port: int = 80, timeout: float = 0.5) -> bool:
+    """Return True if the ABB robot responds on the configured host/port."""
+    try:
+        with socket.create_connection((host, port), timeout):
+            return True
+    except OSError:
+        return False
 
 ###############################################################################
 # Plotly helpers
@@ -181,28 +190,37 @@ def run_toolpath(
     npy_path: os.PathLike | str,
     drawback_dist: float = CHUCK_DRAWBACK_DISTANCE_MM,
     port: Optional[str] = None,
+    *,
+    run_machine: bool = True,
+    run_arm: bool = True,
+    laser_on: bool = True,
 ) -> None:
-    """Stream a command array to the robot over serial."""
-    if port is None:
-        port = detect_serial_port()
-    if port is None:
-        raise RuntimeError("No Arduino/ESP32 serial device found")
+    """Stream a command array to the robot and/or machine."""
 
     steps = np.load(npy_path)
-    robot = Robot()
 
-    tx = transmitter.Transmitter(port, BAUD, write_timeout=None, timeout=None)
-    log_q: "queue.Queue[str]" = queue.Queue()
-    threading.Thread(target=reader_task, args=(tx.serial, log_q), daemon=True).start()
+    if run_machine:
+        if port is None:
+            port = detect_serial_port()
+        if port is None:
+            raise RuntimeError("No Arduino/ESP32 serial device found")
+        tx = transmitter.Transmitter(port, BAUD, write_timeout=None, timeout=None)
+        log_q: "queue.Queue[str]" = queue.Queue()
+        threading.Thread(target=reader_task, args=(tx.serial, log_q), daemon=True).start()
 
-    def _send(cmd: str) -> None:
-        if not cmd.endswith("\0"):
-            cmd += "\0"
-        tx.send_msg(transmitter.CommandMessage(cmd))
-        wait_for_ack(log_q)
+        def _send(cmd: str) -> None:
+            if not cmd.endswith("\0"):
+                cmd += "\0"
+            tx.send_msg(transmitter.CommandMessage(cmd))
+            wait_for_ack(log_q)
+    else:
+        def _send(_cmd: str) -> None:
+            pass
 
-    # Home rotary axis once at start
-    _send("G28 A")
+    robot = Robot() if run_arm else None
+
+    if run_machine:
+        _send("G28 A")
 
     for i, step in enumerate(steps):
         angle_rad = np.deg2rad(step[7])
@@ -215,23 +233,52 @@ def run_toolpath(
             and bool(steps[i + 1][8])
         )
 
-        if pull_back:
-            _send(f"G01 A{angle_rad:.4f} C-30.0")
-            _send(f"G01 A{angle_rad:.4f} Y{drawback_dist} C-30.0")
-        else:
-            _send(f"G01 A{angle_rad:.4f}")
+        if run_machine:
+            if pull_back:
+                _send(f"G01 A{angle_rad:.4f} C-30.0")
+                _send(f"G01 A{angle_rad:.4f} Y{drawback_dist} C-30.0")
+            else:
+                _send(f"G01 A{angle_rad:.4f}")
 
-        # Update your digital twin / live visualiser, if present
-        quat_xyzw = [step[4], step[5], step[6], step[3]]
-        robot_pos = np.array([step[0], step[1], step[2], *quat_xyzw])
-        robot.step(robot_pos)
-        Laser.ablate()
+        if run_arm:
+            quat_xyzw = [step[4], step[5], step[6], step[3]]
+            robot_pos = np.array([step[0], step[1], step[2], *quat_xyzw])
+            robot.step(robot_pos)
+            if laser_on:
+                Laser.ablate()
 
-        if pull_back and not next_same_angle_pull:
+        if run_machine and pull_back and not next_same_angle_pull:
             _send(f"G01 A{angle_rad:.4f} Y-{drawback_dist} C0")
 
-    _send("G01 A0 Y0")
-    _send("G01 A0 Y0 C0")
+    if run_machine:
+        _send("G01 A0 Y0")
+        _send("G01 A0 Y0 C0")
+
+
+class PlanWorker(QThread):
+    progress = pyqtSignal(int, int)
+    finished = pyqtSignal(object, list)
+    error = pyqtSignal(str)
+
+    def __init__(self, stl_path: str) -> None:
+        super().__init__()
+        self.stl_path = stl_path
+
+    def run(self) -> None:
+        try:
+            with _suppress_plotly_show():
+                ret = Main.main(
+                    self.stl_path,
+                    display_animation=False,
+                    progress_callback=self._on_progress,
+                )
+            path, figs = ToolpathGUI._normalize_main_return(ret)
+            self.finished.emit(path, figs)
+        except Exception as exc:  # pragma: no cover - gui
+            self.error.emit(str(exc))
+
+    def _on_progress(self, current: int, total: int) -> None:
+        self.progress.emit(current, total)
 
 
 class PlanWorker(QThread):
@@ -282,9 +329,12 @@ class ToolpathGUI(QtWidgets.QWidget):
         btn_row.addWidget(self.btn_gen)
         vbox.addLayout(btn_row)
 
-        # Serial connection status
-        self.status_label = QtWidgets.QLabel()
-        vbox.addWidget(self.status_label)
+        # Connection status labels
+        self.status_serial = QtWidgets.QLabel()
+        self.status_robot = QtWidgets.QLabel()
+        vbox.addWidget(self.status_serial)
+        vbox.addWidget(self.status_robot)
+
 
         # Web view for Plotly
         self.web = QtWebEngineWidgets.QWebEngineView()
@@ -312,25 +362,90 @@ class ToolpathGUI(QtWidgets.QWidget):
         self.progress.setVisible(False)
         vbox.addWidget(self.progress)
 
-        # Run button
-        self.btn_run = QtWidgets.QPushButton("Run Toolpath")
-        self.btn_run.setEnabled(False)
-        vbox.addWidget(self.btn_run)
+        # Run buttons
+        self.btn_run_machine = QtWidgets.QPushButton("Run with machine only")
+        self.btn_run_arm = QtWidgets.QPushButton("Run with arm only (no laser)")
+        self.btn_run_sync_off = QtWidgets.QPushButton("Run synchronously (laser off)")
+        self.btn_run_sync_on = QtWidgets.QPushButton("Run synchronously (laser on)")
+        for b in (
+            self.btn_run_machine,
+            self.btn_run_arm,
+            self.btn_run_sync_off,
+            self.btn_run_sync_on,
+        ):
+            b.setEnabled(False)
+            vbox.addWidget(b)
+
 
         # ---------------- Internal state ----------------
         self.npy_path: Optional[Path] = None
         self.temp_html_path: Optional[str] = None  # To store the path to the temp file
         self.serial_port: Optional[str] = detect_serial_port()
+        self.robot_connected: bool = is_robot_connected()
 
-        self._update_serial_status()
+        self._update_connection_status()
         self.status_timer = QTimer(self)
-        self.status_timer.timeout.connect(self._update_serial_status)
+        self.status_timer.timeout.connect(self._update_connection_status)
+
         self.status_timer.start(3000)
 
         # ---------------- Signals ----------------
         self.btn_load.clicked.connect(self.load_existing)
         self.btn_gen.clicked.connect(self.generate_toolpath)
-        self.btn_run.clicked.connect(self.execute_toolpath)
+        self.btn_run_machine.clicked.connect(self.run_machine_only)
+        self.btn_run_arm.clicked.connect(self.run_arm_only)
+        self.btn_run_sync_off.clicked.connect(lambda: self.run_synchronous(False))
+        self.btn_run_sync_on.clicked.connect(lambda: self.run_synchronous(True))
+
+    def _update_connection_status(self) -> None:
+        self.serial_port = detect_serial_port()
+        self.robot_connected = is_robot_connected()
+        if self.serial_port:
+            self.status_serial.setText(f"Arduino detected on {self.serial_port}")
+        else:
+            self.status_serial.setText("No Arduino/ESP32 detected")
+        self.status_robot.setText(
+            "Robot connected" if self.robot_connected else "Robot not reachable"
+        )
+        self._update_run_buttons()
+
+    def _update_run_buttons(self) -> None:
+        has_path = self.npy_path is not None
+        machine_ready = has_path and self.serial_port is not None
+        arm_ready = has_path and self.robot_connected
+        both_ready = machine_ready and arm_ready
+        self.btn_run_machine.setEnabled(machine_ready)
+        self.btn_run_arm.setEnabled(arm_ready)
+        self.btn_run_sync_off.setEnabled(both_ready)
+        self.btn_run_sync_on.setEnabled(both_ready)
+
+    def _on_plan_progress(self, current: int, total: int) -> None:
+        self.progress.setMaximum(total)
+        self.progress.setValue(current)
+
+    def _on_plan_finished(self, npy_path: Path, figs: list) -> None:
+        self.npy_path = npy_path
+        self.progress.setVisible(False)
+        self._show_figures(figs)
+        self._update_run_buttons()
+
+    def _on_plan_error(self, msg: str) -> None:
+        self.progress.setVisible(False)
+        QtWidgets.QMessageBox.critical(self, "Error", msg)
+
+    def _animate_loading(self) -> None:
+        self._loading_dots = (self._loading_dots + 1) % 4
+        self.loading_label.setText("Loading" + "." * self._loading_dots)
+
+    def _start_loading_animation(self) -> None:
+        self._loading_dots = 0
+        self.loading_label.setText("Loading")
+        self.loading_label.setVisible(True)
+        self.loading_timer.start(300)
+
+    def _stop_loading_animation(self, _ok: bool) -> None:
+        self.loading_timer.stop()
+        self.loading_label.setVisible(False)
 
     def _update_serial_status(self) -> None:
         self.serial_port = detect_serial_port()
@@ -428,10 +543,9 @@ class ToolpathGUI(QtWidgets.QWidget):
             return
 
         self.npy_path = Path(file_path)
-        self.btn_run.setEnabled(True)
-
         # Show a placeholder message
         self._show_figures(None)
+        self._update_run_buttons()
 
     # ------------------------------------------------------------------
     # Slot: generate a new tool-path
@@ -451,40 +565,60 @@ class ToolpathGUI(QtWidgets.QWidget):
         self.worker.error.connect(self._on_plan_error)
         self.worker.start()
 
-    # ------------------------------------------------------------------
-    # Slot: execute the loaded/generated tool-path
-    # ------------------------------------------------------------------
-    def execute_toolpath(self) -> None:
+
+    def _execute_run(self, *, run_machine: bool, run_arm: bool, laser_on: bool) -> None:
         if self.npy_path is None:
             QtWidgets.QMessageBox.warning(self, "No path", "Load or generate a tool-path first.")
             return
-
-        if self.serial_port is None:
+        if run_machine and self.serial_port is None:
             QtWidgets.QMessageBox.warning(self, "No device", "No Arduino/ESP32 detected.")
             return
+        if run_arm and not self.robot_connected:
+            QtWidgets.QMessageBox.warning(self, "No robot", "Robot not reachable.")
+            return
+        for b in (
+            self.btn_run_machine,
+            self.btn_run_arm,
+            self.btn_run_sync_off,
+            self.btn_run_sync_on,
+        ):
+            b.setEnabled(False)
 
-        self.btn_run.setEnabled(False)
 
-        def _worker():
+        def _worker() -> None:
             try:
-                run_toolpath(self.npy_path, port=self.serial_port)
+                run_toolpath(
+                    self.npy_path,
+                    port=self.serial_port,
+                    run_machine=run_machine,
+                    run_arm=run_arm,
+                    laser_on=laser_on,
+                )
+
             except Exception as exc:
                 QtWidgets.QMessageBox.critical(self, "Error", str(exc))
             finally:
-                # Re-enable button when done by posting a custom event to the main thread
                 QtWidgets.QApplication.instance().postEvent(
-                    self,
-                    QEvent(QEvent.Type(QEvent.registerEventType())),
+                    self, QEvent(QEvent.Type(QEvent.registerEventType()))
                 )
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def run_machine_only(self) -> None:
+        self._execute_run(run_machine=True, run_arm=False, laser_on=False)
+
+    def run_arm_only(self) -> None:
+        self._execute_run(run_machine=False, run_arm=True, laser_on=False)
+
+    def run_synchronous(self, laser_on: bool) -> None:
+        self._execute_run(run_machine=True, run_arm=True, laser_on=laser_on)
 
     # ------------------------------------------------------------------
     # Override: custom event for re-enabling the Run button
     # ------------------------------------------------------------------
     def event(self, ev: QEvent) -> bool:  # type: ignore[override]
         if ev.type() >= QEvent.Type.User:
-            self.btn_run.setEnabled(True)
+            self._update_run_buttons()
             return True
         return super().event(ev)
 
