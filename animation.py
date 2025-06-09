@@ -16,14 +16,15 @@ from collision_utils import candidate_collision_check_trimesh
 
 
 def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
-                     local_chuck_mesh=None, 
-                     chuck_pullback_distance=500.0, 
+                     local_chuck_mesh=None,
+                     chuck_pullback_distance=500.0,
                      offset=200, axis_length=400, scan_size=25, frame_duration=50,
                      ee_box_extents=[-140, 444.5, -130, 280, -257, 88],
                      table_mesh=None, back_wall_mesh=None, ceiling_mesh=None, right_wall_mesh=None,
                      offset_margin=5, display_animation=True, collision_manager=None,
                      debug_obstacles_only=False,
-                     split_animation_halves=True): # New flag to control splitting
+                     split_animation_halves=True,
+                     return_figures=False):
     """
     Animates the toolpath or displays a static scene.
     If split_animation_halves is True, the animation is divided into two figures
@@ -280,21 +281,34 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
             )
             return fig
 
-        if split_animation_halves and num_total_frames > 1:
+    figures = []
+    if split_animation_halves and num_total_frames > 1:
             mid_point = num_total_frames // 2
             frames_part1 = all_animation_frames[:mid_point]
             frames_part2 = all_animation_frames[mid_point:]
 
             if frames_part1:
                 fig1 = create_animation_figure(frames_part1, "Toolpath Animation - Part 1", frame_offset=0)
-                if fig1: fig1.show()
-            
+                if fig1:
+                    if display_animation:
+                        fig1.show()
+                    if return_figures:
+                        figures.append(fig1)
+
             if frames_part2:
                 fig2 = create_animation_figure(frames_part2, "Toolpath Animation - Part 2", frame_offset=mid_point)
-                if fig2: fig2.show()
-        else: # Show as a single animation
+                if fig2:
+                    if display_animation:
+                        fig2.show()
+                    if return_figures:
+                        figures.append(fig2)
+    else: # Show as a single animation
             fig_single = create_animation_figure(all_animation_frames, "Toolpath Animation", frame_offset=0)
-            if fig_single: fig_single.show()
+            if fig_single:
+                if display_animation:
+                    fig_single.show()
+                if return_figures:
+                    figures.append(fig_single)
             
     # --- Display Final Scan Coverage Figure (remains the same) ---
     # ... (this block remains the same as the previous full version) ...
@@ -312,13 +326,16 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
         if single_scanned_global_pts.shape[0] > 0: final_cloud_data.append(go.Scatter3d(x=single_scanned_global_pts[:,0], y=single_scanned_global_pts[:,1], z=single_scanned_global_pts[:,2], mode='markers', marker=dict(color='blue', size=3), name='Scanned (1x)'))
         if double_scanned_global_pts.shape[0] > 0: final_cloud_data.append(go.Scatter3d(x=double_scanned_global_pts[:,0], y=double_scanned_global_pts[:,1], z=double_scanned_global_pts[:,2], mode='markers', marker=dict(color='red', size=3), name='Scanned (2x+)'))
 
-        if final_cloud_data: 
+        if final_cloud_data:
             fig_final_cloud = go.Figure(data=final_cloud_data)
-            final_scene_layout = scene_range_settings.copy(); final_scene_layout['aspectmode'] = 'data' 
+            final_scene_layout = scene_range_settings.copy(); final_scene_layout['aspectmode'] = 'data'
             fig_final_cloud.update_layout(title="Final Dense Point Cloud Scan Coverage", scene=final_scene_layout)
-            fig_final_cloud.show()
+            if display_animation:
+                fig_final_cloud.show()
+            if return_figures:
+                figures.append(fig_final_cloud)
     elif display_animation and toolpath and N_dense_anim == 0:
-        if stl_mesh and not stl_mesh.is_empty: 
+        if stl_mesh and not stl_mesh.is_empty:
             print("Animation: No dense points were sampled from the part, skipping final scan coverage plot.")
-        
-    return
+
+    return figures
