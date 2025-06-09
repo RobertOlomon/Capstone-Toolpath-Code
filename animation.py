@@ -23,7 +23,7 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
                      table_mesh=None, back_wall_mesh=None, ceiling_mesh=None, right_wall_mesh=None,
                      offset_margin=5, display_animation=True, collision_manager=None,
                      debug_obstacles_only=False,
-                     split_animation_halves=True): # New flag to control splitting
+                     split_animation_halves=False): 
     """
     Animates the toolpath or displays a static scene.
     If split_animation_halves is True, the animation is divided into two figures
