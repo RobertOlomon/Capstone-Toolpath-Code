@@ -280,6 +280,32 @@ class PlanWorker(QThread):
     def _on_progress(self, current: int, total: int) -> None:
         self.progress.emit(current, total)
 
+
+class PlanWorker(QThread):
+    progress = pyqtSignal(int, int)
+    finished = pyqtSignal(object, list)
+    error = pyqtSignal(str)
+
+    def __init__(self, stl_path: str) -> None:
+        super().__init__()
+        self.stl_path = stl_path
+
+    def run(self) -> None:
+        try:
+            with _suppress_plotly_show():
+                ret = Main.main(
+                    self.stl_path,
+                    display_animation=False,
+                    progress_callback=self._on_progress,
+                )
+            path, figs = ToolpathGUI._normalize_main_return(ret)
+            self.finished.emit(path, figs)
+        except Exception as exc:  # pragma: no cover - gui
+            self.error.emit(str(exc))
+
+    def _on_progress(self, current: int, total: int) -> None:
+        self.progress.emit(current, total)
+
 ###############################################################################
 # Qt main window
 ###############################################################################
@@ -308,6 +334,7 @@ class ToolpathGUI(QtWidgets.QWidget):
         self.status_robot = QtWidgets.QLabel()
         vbox.addWidget(self.status_serial)
         vbox.addWidget(self.status_robot)
+
 
         # Web view for Plotly
         self.web = QtWebEngineWidgets.QWebEngineView()
@@ -349,6 +376,7 @@ class ToolpathGUI(QtWidgets.QWidget):
             b.setEnabled(False)
             vbox.addWidget(b)
 
+
         # ---------------- Internal state ----------------
         self.npy_path: Optional[Path] = None
         self.temp_html_path: Optional[str] = None  # To store the path to the temp file
@@ -358,6 +386,7 @@ class ToolpathGUI(QtWidgets.QWidget):
         self._update_connection_status()
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self._update_connection_status)
+
         self.status_timer.start(3000)
 
         # ---------------- Signals ----------------
@@ -399,6 +428,41 @@ class ToolpathGUI(QtWidgets.QWidget):
         self.progress.setVisible(False)
         self._show_figures(figs)
         self._update_run_buttons()
+
+    def _on_plan_error(self, msg: str) -> None:
+        self.progress.setVisible(False)
+        QtWidgets.QMessageBox.critical(self, "Error", msg)
+
+    def _animate_loading(self) -> None:
+        self._loading_dots = (self._loading_dots + 1) % 4
+        self.loading_label.setText("Loading" + "." * self._loading_dots)
+
+    def _start_loading_animation(self) -> None:
+        self._loading_dots = 0
+        self.loading_label.setText("Loading")
+        self.loading_label.setVisible(True)
+        self.loading_timer.start(300)
+
+    def _stop_loading_animation(self, _ok: bool) -> None:
+        self.loading_timer.stop()
+        self.loading_label.setVisible(False)
+
+    def _update_serial_status(self) -> None:
+        self.serial_port = detect_serial_port()
+        if self.serial_port:
+            self.status_label.setText(f"Arduino detected on {self.serial_port}")
+        else:
+            self.status_label.setText("No Arduino/ESP32 detected")
+
+    def _on_plan_progress(self, current: int, total: int) -> None:
+        self.progress.setMaximum(total)
+        self.progress.setValue(current)
+
+    def _on_plan_finished(self, npy_path: Path, figs: list) -> None:
+        self.npy_path = npy_path
+        self.progress.setVisible(False)
+        self.btn_run.setEnabled(True)
+        self._show_figures(figs)
 
     def _on_plan_error(self, msg: str) -> None:
         self.progress.setVisible(False)
@@ -512,7 +576,6 @@ class ToolpathGUI(QtWidgets.QWidget):
         if run_arm and not self.robot_connected:
             QtWidgets.QMessageBox.warning(self, "No robot", "Robot not reachable.")
             return
-
         for b in (
             self.btn_run_machine,
             self.btn_run_arm,
@@ -520,6 +583,7 @@ class ToolpathGUI(QtWidgets.QWidget):
             self.btn_run_sync_on,
         ):
             b.setEnabled(False)
+
 
         def _worker() -> None:
             try:
@@ -530,6 +594,7 @@ class ToolpathGUI(QtWidgets.QWidget):
                     run_arm=run_arm,
                     laser_on=laser_on,
                 )
+
             except Exception as exc:
                 QtWidgets.QMessageBox.critical(self, "Error", str(exc))
             finally:
