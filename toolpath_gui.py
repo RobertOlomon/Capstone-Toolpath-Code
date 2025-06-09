@@ -146,7 +146,7 @@ class ToolpathGUI(QtWidgets.QWidget):
         stl_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select STL file", os.getcwd(), "STL Files (*.stl)")
         if not stl_path:
             return
-        # pass the chosen STL path as the named argument for clarity
+          
         figs = Main.main(stl_file_path=stl_path, display_animation=False)
         self.npy_path = "ee_robot_commands.npy"
         self.display_figures(figs)
