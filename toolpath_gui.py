@@ -4,8 +4,9 @@ import sys
 import threading
 import queue
 import numpy as np
-from PyQt5 import QtWidgets, QtWebEngineWidgets
-from PyQt5.QtCore import QUrl
+from PyQt6 import QtWidgets, QtWebEngineWidgets
+from PyQt6.QtCore import QUrl
+
 import plotly.io as pio
 
 import transmitter
@@ -121,7 +122,7 @@ class ToolpathGUI(QtWidgets.QWidget):
         self.npy_path: str | None = None
         self.html_temp: str | None = None
 
-        self.load_btn.clicked.connect(self.load_existing)
+        figs = Main.main(stl_path, display_animation=False)
         self.gen_btn.clicked.connect(self.generate_toolpath)
         self.run_btn.clicked.connect(self.execute_toolpath)
 
@@ -161,4 +162,5 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     gui = ToolpathGUI()
     gui.show()
-    sys.exit(app.exec_())
+
+    sys.exit(app.exec())

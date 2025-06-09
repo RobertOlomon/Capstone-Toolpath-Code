@@ -26,7 +26,7 @@ from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
 import gridpattern # Importing gridpattern for scan point generation
 
-def main(stl_file_path=None):
+def main(stl_file_path=None, display_animation=True):
     # --- Debug Flags and High-Level Parameters ---
     debug_flip_part = True        
     debug_obstacles_only = False    
@@ -261,7 +261,7 @@ def main(stl_file_path=None):
         ee_box_extents=ee_collision_box_extents,
         table_mesh=table_mesh_object if table_mesh_object and not table_mesh_object.is_empty else None, 
         back_wall_mesh=back_wall_mesh_object if back_wall_mesh_object and not back_wall_mesh_object.is_empty else None,
-        display_animation=True,
+        display_animation=display_animation,
         collision_manager=env_collision_manager if env_collision_manager and env_collision_manager._objs else None, 
         debug_obstacles_only=debug_obstacles_only,
         split_animation_halves=True,
