@@ -6,6 +6,7 @@ import queue
 import numpy as np
 from PyQt6 import QtWidgets, QtWebEngineWidgets
 from PyQt6.QtCore import QUrl
+
 import plotly.io as pio
 
 import transmitter
@@ -161,4 +162,5 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     gui = ToolpathGUI()
     gui.show()
+
     sys.exit(app.exec())

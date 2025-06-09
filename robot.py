@@ -186,7 +186,7 @@ if __name__ == "__main__":
         num_of_points = len(curr_file)
         
         for i in range(num_of_points): #for each coordinate, run the robot and ablate location 
-
+            
             robot.step(curr_file[i])
             Laser.ablate()
 
