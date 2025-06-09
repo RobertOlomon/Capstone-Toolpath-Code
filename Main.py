@@ -28,6 +28,7 @@ import gridpattern # Importing gridpattern for scan point generation
 
 def main(stl_file_path=None, display_animation=True):
     # --- Debug Flags and High-Level Parameters ---
+    np.random.seed(0)
     debug_flip_part = True
     debug_obstacles_only = False
 
