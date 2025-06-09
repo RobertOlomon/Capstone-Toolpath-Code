@@ -122,7 +122,7 @@ class ToolpathGUI(QtWidgets.QWidget):
         self.npy_path: str | None = None
         self.html_temp: str | None = None
 
-        self.load_btn.clicked.connect(self.load_existing)
+        figs = Main.main(stl_path, display_animation=False)
         self.gen_btn.clicked.connect(self.generate_toolpath)
         self.run_btn.clicked.connect(self.execute_toolpath)
 
