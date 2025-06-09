@@ -20,7 +20,7 @@ import os # For file operations like removing temp file
 # Import custom modules for different stages of planning
 from planner import plan_toolpath
 from collision_utils import build_collision_manager
-from mesh_utils import create_box_mesh, get_chuck_mesh 
+from mesh_utils import create_box_mesh, get_chuck_mesh
 from animation import animate_toolpath
 from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
@@ -28,27 +28,27 @@ import gridpattern # Importing gridpattern for scan point generation
 
 def main(stl_file_path=None, display_animation=True):
     # --- Debug Flags and High-Level Parameters ---
-    debug_flip_part = True        
-    debug_obstacles_only = False    
+    debug_flip_part = True
+    debug_obstacles_only = False
 
     # --- Part and Environment Setup ---
     if stl_file_path is None:
         stl_file_path = r"C:\Users\robbi\Documents\STL\TorpedoMockup.stl"
 
-    part_front_surface_global_origin = np.array([1050, 0, 250]) 
-    
-    part_turntable_y_axis = np.array([0, 1, 0]) 
-    initial_part_rotation_angle = 0           
-    scan_area_size = 50                       
+    part_front_surface_global_origin = np.array([1050, 0, 250])
 
-    part_length_scale = 1.0   
-    part_diameter_scale = 1.0 
+    part_turntable_y_axis = np.array([0, 1, 0])
+    initial_part_rotation_angle = 0
+    scan_area_size = 50
+
+    part_length_scale = 1.0
+    part_diameter_scale = 1.0
 
     # --- Chuck Parameters ---
     chuck_diameter = 350.0
-    chuck_length_into_part = 100.0  
-    chuck_length_away_from_part = 100.0 
-    chuck_animation_pullback = 500.0 
+    chuck_length_into_part = 100.0
+    chuck_length_away_from_part = 100.0
+    chuck_animation_pullback = 500.0
 
     # --- 1. Load and Preprocess Part Mesh ---
     base_stl_mesh = trimesh.load(stl_file_path)
@@ -60,7 +60,7 @@ def main(stl_file_path=None, display_animation=True):
 
     T_scale_part = np.eye(4)
     T_scale_part[0, 0] = part_diameter_scale
-    T_scale_part[1, 1] = part_length_scale  
+    T_scale_part[1, 1] = part_length_scale
     T_scale_part[2, 2] = part_diameter_scale
     base_stl_mesh.apply_transform(T_scale_part)
     
@@ -70,21 +70,21 @@ def main(stl_file_path=None, display_animation=True):
     # --- 2. Generate Scan Points ---
     local_cleaning_points, local_cleaning_normals, mesh_from_gridpattern = \
         gridpattern.generate_optimal_scan_points_hybrid(
-            temp_scaled_stl_file, 
-            scan_area_size, 
-            N_candidates=30000, 
-            factor_non_cyl=0.8, 
-            debug_only_cyl=False, 
+            temp_scaled_stl_file,
+            scan_area_size,
+            N_candidates=30000,
+            factor_non_cyl=0.8,
+            debug_only_cyl=False,
             debug_single_row=False
         )
-    processed_stl_mesh = mesh_from_gridpattern 
+    processed_stl_mesh = mesh_from_gridpattern
     if processed_stl_mesh.is_empty:
         if os.path.exists(temp_scaled_stl_file): os.remove(temp_scaled_stl_file)
         raise ValueError("Mesh from gridpattern is empty. Cannot proceed.")
 
     # --- Calculate Part's Global Origin from Front Surface Input ---
-    mesh_local_centroid = processed_stl_mesh.bounds.mean(axis=0) 
-    mesh_local_front_y_coord = processed_stl_mesh.bounds[1, 1] 
+    mesh_local_centroid = processed_stl_mesh.bounds.mean(axis=0)
+    mesh_local_front_y_coord = processed_stl_mesh.bounds[1, 1]
     y_offset_front_to_centroid = mesh_local_centroid[1] - mesh_local_front_y_coord
     
     part_global_center_origin = part_front_surface_global_origin.copy()
@@ -105,7 +105,7 @@ def main(stl_file_path=None, display_animation=True):
 
     # --- Create Local Chuck Mesh (before any debug flip) ---
     local_chuck_mesh = get_chuck_mesh(
-        part_mesh=processed_stl_mesh, 
+        part_mesh=processed_stl_mesh,
         diameter=chuck_diameter,
         length_into_part=chuck_length_into_part,
         length_away_from_part=chuck_length_away_from_part
@@ -119,9 +119,9 @@ def main(stl_file_path=None, display_animation=True):
         T_flip_z_180 = np.eye(4)
         T_flip_z_180[:3, :3] = R.from_euler('z', 180, degrees=True).as_matrix()
         
-        processed_stl_mesh.apply_transform(T_flip_z_180) 
+        processed_stl_mesh.apply_transform(T_flip_z_180)
         if not local_chuck_mesh.is_empty:
-            local_chuck_mesh.apply_transform(T_flip_z_180) 
+            local_chuck_mesh.apply_transform(T_flip_z_180)
         
         if local_cleaning_points.size > 0:
             ones_pts = np.ones((local_cleaning_points.shape[0], 1))
@@ -133,48 +133,48 @@ def main(stl_file_path=None, display_animation=True):
         part_local_rotation_pivot = processed_stl_mesh.bounds.mean(axis=0)
 
     # --- 3. Define Obstacles and EE Collision Geometry ---
-    ee_collision_box_extents = [-140, 444.5, -130, 280, -257, 88] 
+    ee_collision_box_extents = [-140, 444.5, -130, 280, -257, 88]
     
-    table_extents = [876.3, 1450, -1200, 438.15, -485.775, -31.75] 
-    table_mesh_object = create_box_mesh(table_extents, np.eye(4)) 
-    table_max_z_height = table_extents[5] 
+    table_extents = [876.3, 1450, -1200, 438.15, -485.775, -31.75]
+    table_mesh_object = create_box_mesh(table_extents, np.eye(4))
+    table_max_z_height = table_extents[5]
 
     back_wall_extents = [1450, 1850, -1200, 1880, -485.775, 2000]
     back_wall_mesh_object = create_box_mesh(back_wall_extents, np.eye(4))
     
     env_collision_manager = build_collision_manager(
-        part_mesh=None, 
+        part_mesh=None,
         table_mesh=table_mesh_object,
         back_wall_mesh=back_wall_mesh_object
     )
 
     # --- 4. Plan the Toolpath ---
-    scan_offset_from_ee = 240 
-    offset_margin_for_beam = 3 
+    scan_offset_from_ee = 240
+    offset_margin_for_beam = 3
     
     planned_toolpath = plan_toolpath(
-        cleaning_points=local_cleaning_points, 
+        cleaning_points=local_cleaning_points,
         cleaning_normals=local_cleaning_normals,
-        part_origin=part_global_center_origin, 
-        part_y_axis=part_turntable_y_axis, 
+        part_origin=part_global_center_origin,
+        part_y_axis=part_turntable_y_axis,
         part_center_pivot=part_local_rotation_pivot,
         local_chuck_mesh=local_chuck_mesh if not local_chuck_mesh.is_empty else None,
         offset=scan_offset_from_ee,
-        lambda_angle=0.1,           
-        lambda_vis=1.0,             
-        visibility_threshold=0.2,   
-        lambda_deviation=10.0,      
-        lambda_center=5.0,          
-        lambda_pitch=20.0,          
+        lambda_angle=0.1,
+        lambda_vis=1.0,
+        visibility_threshold=0.2,
+        lambda_deviation=10.0,
+        lambda_center=5.0,
+        lambda_pitch=20.0,
         starting_angle=initial_part_rotation_angle,
         table_threshold=table_max_z_height,
-        stl_mesh=processed_stl_mesh if not processed_stl_mesh.is_empty else None, 
+        stl_mesh=processed_stl_mesh if not processed_stl_mesh.is_empty else None,
         ee_box_extents=ee_collision_box_extents,
-        env_collision_manager=env_collision_manager, 
-        scan_size_for_beam_check=scan_area_size, 
+        env_collision_manager=env_collision_manager,
+        scan_size_for_beam_check=scan_area_size,
         offset_margin_for_beam_check=offset_margin_for_beam,
-        coarse_step=20,             
-        disable_intermediate_collision=True 
+        coarse_step=20,
+        disable_intermediate_collision=True
     )
 
     # --- 5. Prune Toolpath and Generate Dense Cloud for Simulation ---
@@ -188,7 +188,7 @@ def main(stl_file_path=None, display_animation=True):
         dense_pts_for_sim = np.empty((0,3))
         dense_normals_for_sim = np.empty((0,3))
     
-    offset_margin_for_sim = 3 
+    offset_margin_for_sim = 3
     pruned_toolpath_steps = prune_toolpath_steps(
         planned_toolpath, dense_pts_for_sim, dense_normals_for_sim,
         part_global_center_origin, part_turntable_y_axis, part_local_rotation_pivot,
@@ -196,10 +196,11 @@ def main(stl_file_path=None, display_animation=True):
     )
 
     # --- 6. Extract and Save EE Commands ---
+    output_npy_path = "ee_robot_commands.npy"
     ee_robot_commands = []
-    for step in pruned_toolpath_steps: 
-        ee_pos, ee_quat_xyzw, part_angle_deg = step[0], step[1], step[2] 
-        must_pull_back_flag = step[7] 
+    for step in pruned_toolpath_steps:
+        ee_pos, ee_quat_xyzw, part_angle_deg = step[0], step[1], step[2]
+        must_pull_back_flag = step[7]
         
         if ee_pos is not None and ee_quat_xyzw is not None:
             # Ensure quaternion is numpy array for consistent indexing
@@ -219,8 +220,8 @@ def main(stl_file_path=None, display_animation=True):
             
             transformed_quat_x = -qcy
             transformed_quat_y =  qcx
-            transformed_quat_z =  qcw  
-            transformed_quat_w = -qcz  
+            transformed_quat_z =  qcw
+            transformed_quat_w = -qcz
             
             # Resulting transformed quaternion in xyzw order:
             transformed_ee_quat_xyzw = np.array([transformed_quat_x, transformed_quat_y, transformed_quat_z, transformed_quat_w])
@@ -234,35 +235,35 @@ def main(stl_file_path=None, display_animation=True):
             ee_robot_commands.append(command_data)
             
     ee_robot_commands_arr = np.array(ee_robot_commands)
-    if ee_robot_commands_arr.size > 0 :
-        np.save("ee_robot_commands.npy", ee_robot_commands_arr) 
-        print(f"EE commands saved to ee_robot_commands.npy ({ee_robot_commands_arr.shape[0]} commands, {ee_robot_commands_arr.shape[1]} elements each)")
+    np.save(output_npy_path, ee_robot_commands_arr)
+    if ee_robot_commands_arr.size > 0:
+        print(f"EE commands saved to {output_npy_path} ({ee_robot_commands_arr.shape[0]} commands, {ee_robot_commands_arr.shape[1]} elements each)")
     else:
-        print("No valid EE commands generated to save.")
+        print(f"No valid EE commands generated. Empty array saved to {output_npy_path}.")
 
 
     # --- 7. Animate Toolpath ---
-    axis_length_for_viz = 180 
-    animation_frame_duration_ms = 50 
+    axis_length_for_viz = 180
+    animation_frame_duration_ms = 50
 
     figs = animate_toolpath(
         toolpath=pruned_toolpath_steps,
-        stl_mesh=processed_stl_mesh, 
-        part_origin=part_global_center_origin, 
-        part_y_axis=part_turntable_y_axis, 
+        stl_mesh=processed_stl_mesh,
+        part_origin=part_global_center_origin,
+        part_y_axis=part_turntable_y_axis,
         part_center=part_local_rotation_pivot,
-        local_chuck_mesh=local_chuck_mesh if not local_chuck_mesh.is_empty else None, 
-        chuck_pullback_distance=chuck_animation_pullback, 
-        offset=scan_offset_from_ee, 
-        offset_margin=offset_margin_for_sim, 
+        local_chuck_mesh=local_chuck_mesh if not local_chuck_mesh.is_empty else None,
+        chuck_pullback_distance=chuck_animation_pullback,
+        offset=scan_offset_from_ee,
+        offset_margin=offset_margin_for_sim,
         axis_length=axis_length_for_viz,
-        scan_size=scan_area_size, 
+        scan_size=scan_area_size,
         frame_duration=animation_frame_duration_ms,
         ee_box_extents=ee_collision_box_extents,
-        table_mesh=table_mesh_object if table_mesh_object and not table_mesh_object.is_empty else None, 
+        table_mesh=table_mesh_object if table_mesh_object and not table_mesh_object.is_empty else None,
         back_wall_mesh=back_wall_mesh_object if back_wall_mesh_object and not back_wall_mesh_object.is_empty else None,
         display_animation=display_animation,
-        collision_manager=env_collision_manager if env_collision_manager and env_collision_manager._objs else None, 
+        collision_manager=env_collision_manager if env_collision_manager and env_collision_manager._objs else None,
         debug_obstacles_only=debug_obstacles_only,
         split_animation_halves=True,
         return_figures=True
@@ -275,7 +276,7 @@ def main(stl_file_path=None, display_animation=True):
         except OSError as e:
             print(f"Error removing temporary file {temp_scaled_stl_file}: {e}")
 
-    return figs
+    return (output_npy_path, *figs)
 
 
 if __name__ == "__main__":

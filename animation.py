@@ -10,7 +10,7 @@ from scipy.spatial.transform import Rotation as R
 import trimesh
 import plotly.graph_objects as go
 
-from mesh_utils import get_laser_beam_mesh, get_ee_box_mesh 
+from mesh_utils import get_laser_beam_mesh, get_ee_box_mesh
 from scan_utils import classify_step_scanned_points
 from collision_utils import candidate_collision_check_trimesh
 
@@ -32,7 +32,6 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
     A final plot shows cumulative scan coverage.
     """
     # --- Shared Setup for Bounds and Debug View ---
-    # ... (Bounds calculation and debug_obstacles_only block remains the same as before) ...
     all_meshes_for_bounds = []
     if stl_mesh and not stl_mesh.is_empty:
         all_meshes_for_bounds.append(stl_mesh)
@@ -82,7 +81,6 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
     )
 
     if debug_obstacles_only:
-        # ... (debug_obstacles_only block remains the same) ...
         debug_frame_data = []
         R_part_initial_debug = R.from_rotvec(part_y_axis * np.deg2rad(0)) 
         
@@ -114,7 +112,6 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
                 i=back_wall_mesh.faces[:, 0], j=back_wall_mesh.faces[:, 1], k=back_wall_mesh.faces[:, 2],
                 color='grey', opacity=1, name='Back Wall'
             ))
-        # ... (add other static obstacles similarly) ...
         
         fig_debug = go.Figure(
             data=debug_frame_data if debug_frame_data else None, 
@@ -125,7 +122,6 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
         return
 
     # --- Scan Coverage Simulation (shared for final plot) ---
-    # ... (this block remains the same) ...
     dense_pts_local_anim = np.empty((0,3))
     dense_normals_anim = np.empty((0,3))
     N_dense_anim = 0
@@ -196,8 +192,7 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
         # Static Obstacles
         if table_mesh is not None and not table_mesh.is_empty: single_frame_data_all_elements.append(go.Mesh3d(x=table_mesh.vertices[:,0], y=table_mesh.vertices[:,1], z=table_mesh.vertices[:,2], i=table_mesh.faces[:,0], j=table_mesh.faces[:,1], k=table_mesh.faces[:,2], color='brown', opacity=1, name='Table'))
         if back_wall_mesh is not None and not back_wall_mesh.is_empty: single_frame_data_all_elements.append(go.Mesh3d(x=back_wall_mesh.vertices[:,0], y=back_wall_mesh.vertices[:,1], z=back_wall_mesh.vertices[:,2], i=back_wall_mesh.faces[:,0], j=back_wall_mesh.faces[:,1], k=back_wall_mesh.faces[:,2], color='grey', opacity=1, name='Back Wall'))
-        # ... add other static obstacles 
-
+        
         if not unreachable and pos is not None and quat is not None: 
             T_EE_current = np.eye(4)
             T_EE_current[:3, :3] = R.from_quat(quat).as_matrix()
@@ -250,68 +245,65 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
         if not frames_subset:
             return None
             
-            slider_ctrl_steps = []
-            for i, anim_frame in enumerate(frames_subset):
-                # Frame name needs to be unique if figures share the same JS context,
-                # but for separate figures, original names are fine.
-                # Label should reflect the actual step number in the overall toolpath.
-                actual_step_number = frame_offset + i + 1
-                slider_ctrl_steps.append(dict(
-                    method="animate", 
-                    args=[[anim_frame.name], {"mode": "immediate", "frame": {"duration": frame_duration, "redraw": True}, "transition": {"duration": 0}}], 
-                    label=f"{actual_step_number}"
-                ))
-            
-            sliders = [dict(active=0, currentvalue={"prefix": "Frame: "}, pad={"t": 50}, steps=slider_ctrl_steps)]
-            updatemenus = [dict(type="buttons", showactive=False, buttons=[
-                    dict(label="Play", method="animate", args=[None, {"frame": {"duration": frame_duration, "redraw": True}, "fromcurrent": True, "transition": {"duration": 0}}]),
-                    dict(label="Pause", method="animate", args=[[None], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate", "transition": {"duration": 0}}])])]
-            
-            # Initial data for the figure is the data of the first frame in the subset
-            initial_data = frames_subset[0].data if frames_subset[0].data else None # Handle if first frame is empty
-            # The 'frames' argument to Figure should be the rest of the frames in the subset
-            figure_frames = frames_subset # Plotly handles the first frame from initial_data
+        slider_ctrl_steps = []
+        for i, anim_frame in enumerate(frames_subset):
+            actual_step_number = frame_offset + i + 1
+            slider_ctrl_steps.append(dict(
+                method="animate", 
+                args=[[anim_frame.name], {"mode": "immediate", "frame": {"duration": frame_duration, "redraw": True}, "transition": {"duration": 0}}], 
+                label=f"{actual_step_number}"
+            ))
+        
+        sliders = [dict(active=0, currentvalue={"prefix": "Frame: "}, pad={"t": 50}, steps=slider_ctrl_steps)]
+        updatemenus = [dict(type="buttons", showactive=False, buttons=[
+                dict(label="Play", method="animate", args=[None, {"frame": {"duration": frame_duration, "redraw": True}, "fromcurrent": True, "transition": {"duration": 0}}]),
+                dict(label="Pause", method="animate", args=[[None], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate", "transition": {"duration": 0}}])])]
+        
+        initial_data = frames_subset[0].data if frames_subset[0].data else None
+        figure_frames = frames_subset
 
-            fig = go.Figure(
-                data=initial_data, 
-                layout=go.Layout(title=f"{title_prefix} (Frames {frame_offset+1}-{frame_offset+len(frames_subset)})", 
-                                 scene=scene_range_settings, updatemenus=updatemenus, sliders=sliders),
-                frames=figure_frames 
-            )
-            return fig
+        fig = go.Figure(
+            data=initial_data, 
+            layout=go.Layout(title=f"{title_prefix} (Frames {frame_offset+1}-{frame_offset+len(frames_subset)})", 
+                             scene=scene_range_settings, updatemenus=updatemenus, sliders=sliders),
+            frames=figure_frames 
+        )
+        return fig
 
     figures = []
     if split_animation_halves and num_total_frames > 1:
-            mid_point = num_total_frames // 2
-            frames_part1 = all_animation_frames[:mid_point]
-            frames_part2 = all_animation_frames[mid_point:]
+        mid_point = num_total_frames // 2
+        frames_part1 = all_animation_frames[:mid_point]
+        frames_part2 = all_animation_frames[mid_point:]
 
-            if frames_part1:
-                fig1 = create_animation_figure(frames_part1, "Toolpath Animation - Part 1", frame_offset=0)
-                if fig1:
-                    if display_animation:
-                        fig1.show()
-                    if return_figures:
-                        figures.append(fig1)
-
-            if frames_part2:
-                fig2 = create_animation_figure(frames_part2, "Toolpath Animation - Part 2", frame_offset=mid_point)
-                if fig2:
-                    if display_animation:
-                        fig2.show()
-                    if return_figures:
-                        figures.append(fig2)
-    else: # Show as a single animation
-            fig_single = create_animation_figure(all_animation_frames, "Toolpath Animation", frame_offset=0)
-            if fig_single:
+        if frames_part1:
+            fig1 = create_animation_figure(frames_part1, "Toolpath Animation - Part 1", frame_offset=0)
+            if fig1:
                 if display_animation:
-                    fig_single.show()
+                    fig1.show()
                 if return_figures:
-                    figures.append(fig_single)
+                    figures.append(fig1)
+
+        if frames_part2:
+            fig2 = create_animation_figure(frames_part2, "Toolpath Animation - Part 2", frame_offset=mid_point)
+            if fig2:
+                if display_animation:
+                    fig2.show()
+                if return_figures:
+                    figures.append(fig2)
+    else:
+        fig_single = create_animation_figure(all_animation_frames, "Toolpath Animation", frame_offset=0)
+        if fig_single:
+            if display_animation:
+                fig_single.show()
+            if return_figures:
+                figures.append(fig_single)
             
-    # --- Display Final Scan Coverage Figure (remains the same) ---
-    # ... (this block remains the same as the previous full version) ...
-    if display_animation and toolpath and N_dense_anim > 0:
+    # --- Final Scan Coverage Figure ---
+    # FIX: Decouple figure creation from the display_animation flag.
+    # The figure should always be created if data is available, and then optionally
+    # shown or returned based on the flags.
+    if toolpath and N_dense_anim > 0:
         final_ref_angle = toolpath[-1][2]
         R_final_ref = R.from_rotvec(part_y_axis * np.deg2rad(final_ref_angle))
         global_dense_pts_final_vis = part_origin + R_final_ref.apply(dense_pts_local_anim - part_center)
@@ -327,13 +319,17 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
 
         if final_cloud_data:
             fig_final_cloud = go.Figure(data=final_cloud_data)
-            final_scene_layout = scene_range_settings.copy(); final_scene_layout['aspectmode'] = 'data'
+            final_scene_layout = scene_range_settings.copy()
+            final_scene_layout['aspectmode'] = 'data'
             fig_final_cloud.update_layout(title="Final Dense Point Cloud Scan Coverage", scene=final_scene_layout)
+            
+            # Now conditionally display or append the figure
             if display_animation:
                 fig_final_cloud.show()
             if return_figures:
                 figures.append(fig_final_cloud)
-    elif display_animation and toolpath and N_dense_anim == 0:
+                
+    elif toolpath and N_dense_anim == 0:
         if stl_mesh and not stl_mesh.is_empty:
             print("Animation: No dense points were sampled from the part, skipping final scan coverage plot.")
 
