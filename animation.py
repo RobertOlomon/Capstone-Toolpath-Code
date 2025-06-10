@@ -23,6 +23,7 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
                      table_mesh=None, back_wall_mesh=None, ceiling_mesh=None, right_wall_mesh=None,
                      offset_margin=5, display_animation=True, collision_manager=None,
                      debug_obstacles_only=False,
+<<<<<<< HEAD
                      split_animation_halves=True,
                      return_figures=False):
     """
@@ -30,6 +31,36 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
     If split_animation_halves is True, the animation is divided into two figures
     showing the first and second temporal halves of the toolpath.
     A final plot shows cumulative scan coverage.
+=======
+                     split_animation_halves=True): # New flag to control splitting
+    """@brief Visualize the planned toolpath using Plotly.
+
+    This function creates 3D animations of the end-effector, part and
+    environment. When ``split_animation_halves`` is ``True`` the sequence is
+    divided into two figures for improved performance.
+
+    @param toolpath              List of step tuples to animate.
+    @param stl_mesh              Mesh of the part.
+    @param part_origin           Global origin of the part.
+    @param part_y_axis           Rotation axis of the part.
+    @param part_center           Local rotation center.
+    @param local_chuck_mesh      Chuck mesh or ``None``.
+    @param chuck_pullback_distance Distance to retract the chuck when needed.
+    @param offset                Nominal EE offset distance.
+    @param axis_length           Length of the drawn coordinate axes.
+    @param scan_size             Size of the scan area square.
+    @param frame_duration        Duration of each animation frame.
+    @param ee_box_extents        EE collision box extents.
+    @param table_mesh            Optional table mesh.
+    @param back_wall_mesh        Optional back wall mesh.
+    @param ceiling_mesh          Optional ceiling mesh.
+    @param right_wall_mesh       Optional right wall mesh.
+    @param offset_margin         Depth tolerance for scanning volume.
+    @param display_animation     Show figures interactively if ``True``.
+    @param collision_manager     Environment collision manager.
+    @param debug_obstacles_only  Only render static obstacles when ``True``.
+    @param split_animation_halves Split animation into two halves when ``True``.
+>>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8
     """
     # --- Shared Setup for Bounds and Debug View ---
     all_meshes_for_bounds = []
@@ -254,6 +285,7 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
                 label=f"{actual_step_number}"
             ))
         
+<<<<<<< HEAD
         sliders = [dict(active=0, currentvalue={"prefix": "Frame: "}, pad={"t": 50}, steps=slider_ctrl_steps)]
         updatemenus = [dict(type="buttons", showactive=False, buttons=[
                 dict(label="Play", method="animate", args=[None, {"frame": {"duration": frame_duration, "redraw": True}, "fromcurrent": True, "transition": {"duration": 0}}]),
@@ -261,6 +293,41 @@ def animate_toolpath(toolpath, stl_mesh, part_origin, part_y_axis, part_center,
         
         initial_data = frames_subset[0].data if frames_subset[0].data else None
         figure_frames = frames_subset
+=======
+        def create_animation_figure(frames_subset, title_prefix, frame_offset=0):
+            """@brief Create a Plotly figure for a subset of frames.
+
+            @param frames_subset List of ``go.Frame`` objects.
+            @param title_prefix  Text prefix for the figure title.
+            @param frame_offset  Starting index offset for slider labels.
+
+            @return ``plotly.graph_objects.Figure`` or ``None`` if no frames.
+            """
+            if not frames_subset:
+                return None
+            
+            slider_ctrl_steps = []
+            for i, anim_frame in enumerate(frames_subset):
+                # Frame name needs to be unique if figures share the same JS context,
+                # but for separate figures, original names are fine.
+                # Label should reflect the actual step number in the overall toolpath.
+                actual_step_number = frame_offset + i + 1
+                slider_ctrl_steps.append(dict(
+                    method="animate", 
+                    args=[[anim_frame.name], {"mode": "immediate", "frame": {"duration": frame_duration, "redraw": True}, "transition": {"duration": 0}}], 
+                    label=f"{actual_step_number}"
+                ))
+            
+            sliders = [dict(active=0, currentvalue={"prefix": "Frame: "}, pad={"t": 50}, steps=slider_ctrl_steps)]
+            updatemenus = [dict(type="buttons", showactive=False, buttons=[
+                    dict(label="Play", method="animate", args=[None, {"frame": {"duration": frame_duration, "redraw": True}, "fromcurrent": True, "transition": {"duration": 0}}]),
+                    dict(label="Pause", method="animate", args=[[None], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate", "transition": {"duration": 0}}])])]
+            
+            # Initial data for the figure is the data of the first frame in the subset
+            initial_data = frames_subset[0].data if frames_subset[0].data else None # Handle if first frame is empty
+            # The 'frames' argument to Figure should be the rest of the frames in the subset
+            figure_frames = frames_subset # Plotly handles the first frame from initial_data
+>>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8
 
         fig = go.Figure(
             data=initial_data, 

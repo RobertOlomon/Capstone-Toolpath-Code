@@ -24,17 +24,30 @@ from mesh_utils import create_box_mesh, get_chuck_mesh
 from animation import animate_toolpath
 from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
-import gridpattern # Importing gridpattern for scan point generation
+import gridpattern
 
+def main(stl_file_path="TorpedoMockup.STL"):
+    """@brief Entry point for toolpath planning demo.
+
+    Demonstrates the complete workflow from loading the part mesh to generating
+    and animating a collision-free cleaning toolpath.
+    """
+
+<<<<<<< HEAD:toolpath.py
 def main(stl_file_path=None, display_animation=True, progress_callback=None):
+=======
+>>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8:Main.py
     # --- Debug Flags and High-Level Parameters ---
     np.random.seed(0)
     debug_flip_part = True
     debug_obstacles_only = False
 
     # --- Part and Environment Setup ---
+<<<<<<< HEAD:toolpath.py
     if stl_file_path is None:
         stl_file_path = r"TorpedoMockup.stl"
+=======
+>>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8:Main.py
 
     part_front_surface_global_origin = np.array([1050, 0, 250])
 
@@ -282,4 +295,6 @@ def main(stl_file_path=None, display_animation=True, progress_callback=None):
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    stl_path_cli = sys.argv[1] if len(sys.argv) > 1 else "TorpedoMockup.STL"
+    main(stl_path_cli)

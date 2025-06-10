@@ -29,6 +29,7 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
                                      env_collision_manager=None, 
                                      scan_size_for_beam_check=25, 
                                      offset_margin_for_beam_check=5, 
+<<<<<<< HEAD
                                       coarse_step=20, fine_step=5, fine_delta=20,
                                       disable_intermediate_collision=True,
                                       progress_callback: Callable[[int, int], None] | None = None):
@@ -41,25 +42,79 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
     
     Returns:
         steps (list): List of toolpath steps (8-element tuples before interpolation).
+=======
+                                     coarse_step=20, fine_step=5, fine_delta=20,
+                                     disable_intermediate_collision=True):
+    """@brief Plan a collision-free cleaning toolpath.
+
+    For each scan point this routine evaluates multiple candidate part
+    orientations and selects the pose with the best combined cost while
+    ensuring the EE and laser beam remain collision free.
+
+    @param cleaning_points Array of cleaning point positions.
+    @param cleaning_normals Array of corresponding normals.
+    @param part_origin Global origin of the part.
+    @param part_y_axis Rotation axis of the part.
+    @param part_center_pivot Local rotation pivot.
+    @param local_chuck_mesh Chuck mesh or ``None``.
+    @param offset Nominal EE offset distance.
+    @param lambda_angle Cost weight for angle deviation.
+    @param lambda_vis Cost weight for visibility.
+    @param visibility_threshold Visibility metric threshold.
+    @param lambda_deviation Cost weight for orientation deviation.
+    @param lambda_center Cost weight for centering.
+    @param lambda_pitch Cost weight for pitch.
+    @param starting_angle Initial part rotation angle.
+    @param move_safety_margin Safety margin for movement.
+    @param table_threshold Z threshold for table clearance.
+    @param stl_mesh Part mesh for collision checking.
+    @param ee_box_extents EE collision box extents.
+    @param env_collision_manager Environment collision manager.
+    @param scan_size_for_beam_check Scan size for beam collision checks.
+    @param offset_margin_for_beam_check Margin for beam distance checks.
+    @param coarse_step Coarse angular step.
+    @param fine_step Fine angular step.
+    @param fine_delta Fine deviation angle.
+    @param disable_intermediate_collision Disable mid-step collision checking.
+
+    @return List of 8-element toolpath step tuples.
+>>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8
     """
     steps = []
     previous_angle = starting_angle
     previous_EE = None 
 
     cm_part_check = CollisionManager() 
-    if stl_mesh is not None and not stl_mesh.is_empty: # stl_mesh.is_empty is valid for Trimesh objects
-        cm_part_check.add_object("part", stl_mesh) # Part added with its local origin
+    if stl_mesh is not None and not stl_mesh.is_empty:
+        cm_part_check.add_object("part", stl_mesh)
 
     ee_box_base = get_ee_box_mesh(ee_box_extents)
     laser_beam_base = get_laser_beam_mesh(scan_size_for_beam_check, offset=offset, offset_margin=offset_margin_for_beam_check)
 
     def check_ee_vs_env_obstacle_collision(T_candidateEE_global):
-        # Corrected check for env_collision_manager
+        """@brief Test EE pose against environment obstacles.
+
+        Transforms the base EE box to ``T_candidateEE_global`` and consults
+        ``env_collision_manager`` for any intersections with static obstacles.
+
+        @param T_candidateEE_global 4x4 pose matrix of the EE.
+
+        @return ``True`` if a collision occurs.
+        """
         if env_collision_manager is None or not env_collision_manager._objs: return False
         return candidate_collision_check_trimesh(T_candidateEE_global, ee_box_base, env_collision_manager)
 
     def check_ee_vs_part_collision(T_candidateEE_global, R_part_global_mat):
-        # Corrected check for cm_part_check (stl_mesh.is_empty is correct for the mesh itself)
+        """@brief Test EE pose against the rotating part mesh.
+
+        The candidate EE box is transformed into part coordinates and checked
+        for intersection with ``stl_mesh`` using ``cm_part_check``.
+
+        @param T_candidateEE_global EE pose to test.
+        @param R_part_global_mat    3x3 rotation matrix of the part.
+
+        @return ``True`` if a collision occurs.
+        """
         if stl_mesh is None or stl_mesh.is_empty or not cm_part_check._objs: return False
         
         ee_box_global = ee_box_base.copy()
@@ -77,8 +132,18 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
         return cm_part_check.in_collision_single(ee_box_in_part_local_frame)
 
     def check_collisions_with_chuck(T_candidateEE_global, R_part_global_mat):
-        if local_chuck_mesh is None or local_chuck_mesh.is_empty: # local_chuck_mesh.is_empty is valid
-            return False 
+        """@brief Test EE pose against the chuck and laser beam.
+
+        The chuck is transformed into the global frame and checked for
+        collisions with both the EE box and the laser beam volume.
+
+        @param T_candidateEE_global EE pose to test.
+        @param R_part_global_mat    3x3 rotation matrix of the part.
+
+        @return ``True`` if any chuck collision occurs.
+        """
+        if local_chuck_mesh is None or local_chuck_mesh.is_empty:
+            return False
 
         T_chuck_local_origin_to_global = np.eye(4)
         T_chuck_local_origin_to_global[:3,:3] = R_part_global_mat
