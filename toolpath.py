@@ -215,7 +215,7 @@ def main(stl_file_path=None, display_animation=True, progress_callback=None):
             # rotated +90 deg about Z relative to the planner's coordinate
             # system.
 
-            rot_c_to_t = R.from_euler("z", 90, degrees=True)
+            rot_c_to_t = R.from_euler("z", -90, degrees=True)
 
             # 1. Transform EE position
             transformed_ee_pos = rot_c_to_t.apply(original_ee_pos)

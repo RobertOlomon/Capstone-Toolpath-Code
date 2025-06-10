@@ -74,8 +74,8 @@ for _name in (
 # Configurable constants
 ###############################################################################
 
-BAUD = 921_600                       # Baud rate
-CHUCK_DRAWBACK_DISTANCE_MM = 500    # How far to pull back on MUST_PULL_BACK
+BAUD = 921600                       # Baud rate
+CHUCK_DRAWBACK_DISTANCE_MM = 300    # How far to pull back on MUST_PULL_BACK
 
 def detect_serial_port() -> Optional[str]:
     """Return the first serial port that looks like an Arduino/ESP32."""
@@ -158,7 +158,7 @@ def convert_npy_to_gcode(
     """Handy debug utility—turn binary command array into human G-code."""
     data = np.load(npy_path)
     with open(gcode_path, "w", encoding="utf-8") as f:
-        f.write("G28 A\0\n")  # Home rotary axis first
+        #f.write("G28 A0\0\n")  # Home rotary axis first
         for i, row in enumerate(data):
             angle_rad = np.deg2rad(row[7])
             pull_back = bool(row[8])
@@ -172,8 +172,8 @@ def convert_npy_to_gcode(
             )
 
             if pull_back:
-                f.write(f"G01 A{angle_rad:.4f} C-30.0\0\n")
-                f.write(f"G01 A{angle_rad:.4f} Y{drawback_dist} C-30.0\0\n")
+                f.write(f"G01 A{angle_rad:.4f} C30.0\0\n")
+                f.write(f"G01 A{angle_rad:.4f} Y{drawback_dist} C30.0\0\n")
                 if not next_same_angle_pull:
                     f.write(f"G01 A{angle_rad:.4f} Y-{drawback_dist} C0\0\n")
             else:
@@ -191,7 +191,7 @@ def run_toolpath(
     run_arm: bool = True,
     laser_on: bool = True,
     progress_callback: Optional[Callable[[int, int], None]] = None,
-    ack_timeout: float = 10.0,
+    ack_timeout: float = 15.0,
 ) -> None:
     """Stream a command array to the robot and/or machine."""
 
@@ -225,45 +225,45 @@ def run_toolpath(
     robot = Robot() if run_arm else None
 
     if run_machine:
-        _send("G28 A")
+        #_send("G28 A \0")
 
-    for i, step in enumerate(steps, 1):
-        angle_rad = np.deg2rad(step[7])
-        pull_back = bool(step[8])
+        for i, step in enumerate(steps, 1):
+            angle_rad = np.deg2rad(step[7])
+            pull_back = bool(step[8])
 
-        next_same_angle_pull = (
-            pull_back
-            and i < len(steps) - 1
-            and np.isclose(angle_rad, np.deg2rad(steps[i + 1][7]))
-            and bool(steps[i + 1][8])
-        )
+            next_same_angle_pull = (
+                pull_back
+                and i < len(steps) - 1
+                and np.isclose(angle_rad, np.deg2rad(steps[i + 1][7]))
+                and bool(steps[i + 1][8])
+            )
+
+            if run_machine:
+                if pull_back:
+                    _send(f"G01 A-{angle_rad:.4f} C5 B0\0")
+                    _send(f"G01 A-{angle_rad:.4f} Y{drawback_dist} C5 B0 \0")
+                else:
+                    _send(f"G01 A-{angle_rad:.4f} B1 \0")
+
+            if run_arm:
+                quat_xyzw = [step[4], step[5], step[6], step[3]]
+                robot_pos = np.array([step[0], step[1], step[2], *quat_xyzw])
+                robot.step(robot_pos)
+                if laser_on:
+                    Laser.ablate()
+
+            if run_machine and pull_back and not next_same_angle_pull:
+                _send(f"G01 A{angle_rad:.4f} Y-{drawback_dist} C0")
+
+            if progress_callback:
+                progress_callback(i, total_steps)
 
         if run_machine:
-            if pull_back:
-                _send(f"G01 A{angle_rad:.4f} C-30.0")
-                _send(f"G01 A{angle_rad:.4f} Y{drawback_dist} C-30.0")
-            else:
-                _send(f"G01 A{angle_rad:.4f}")
-
-        if run_arm:
-            quat_xyzw = [step[4], step[5], step[6], step[3]]
-            robot_pos = np.array([step[0], step[1], step[2], *quat_xyzw])
-            robot.step(robot_pos)
-            if laser_on:
-                Laser.ablate()
-
-        if run_machine and pull_back and not next_same_angle_pull:
-            _send(f"G01 A{angle_rad:.4f} Y-{drawback_dist} C0")
+            _send("G01 A0 Y0 B1\0")
+            _send("G01 A0 Y0 C0 B0\0")
 
         if progress_callback:
-            progress_callback(i, total_steps)
-
-    if run_machine:
-        _send("G01 A0 Y0")
-        _send("G01 A0 Y0 C0")
-
-    if progress_callback:
-        progress_callback(total_steps, total_steps)
+            progress_callback(total_steps, total_steps)
 
 
 
