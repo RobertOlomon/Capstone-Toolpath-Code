@@ -29,7 +29,6 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
                                      env_collision_manager=None, 
                                      scan_size_for_beam_check=25, 
                                      offset_margin_for_beam_check=5, 
-<<<<<<< HEAD
                                       coarse_step=20, fine_step=5, fine_delta=20,
                                       disable_intermediate_collision=True,
                                       progress_callback: Callable[[int, int], None] | None = None):
@@ -42,43 +41,6 @@ def plan_toolpath(cleaning_points, cleaning_normals, part_origin, part_y_axis,
     
     Returns:
         steps (list): List of toolpath steps (8-element tuples before interpolation).
-=======
-                                     coarse_step=20, fine_step=5, fine_delta=20,
-                                     disable_intermediate_collision=True):
-    """@brief Plan a collision-free cleaning toolpath.
-
-    For each scan point this routine evaluates multiple candidate part
-    orientations and selects the pose with the best combined cost while
-    ensuring the EE and laser beam remain collision free.
-
-    @param cleaning_points Array of cleaning point positions.
-    @param cleaning_normals Array of corresponding normals.
-    @param part_origin Global origin of the part.
-    @param part_y_axis Rotation axis of the part.
-    @param part_center_pivot Local rotation pivot.
-    @param local_chuck_mesh Chuck mesh or ``None``.
-    @param offset Nominal EE offset distance.
-    @param lambda_angle Cost weight for angle deviation.
-    @param lambda_vis Cost weight for visibility.
-    @param visibility_threshold Visibility metric threshold.
-    @param lambda_deviation Cost weight for orientation deviation.
-    @param lambda_center Cost weight for centering.
-    @param lambda_pitch Cost weight for pitch.
-    @param starting_angle Initial part rotation angle.
-    @param move_safety_margin Safety margin for movement.
-    @param table_threshold Z threshold for table clearance.
-    @param stl_mesh Part mesh for collision checking.
-    @param ee_box_extents EE collision box extents.
-    @param env_collision_manager Environment collision manager.
-    @param scan_size_for_beam_check Scan size for beam collision checks.
-    @param offset_margin_for_beam_check Margin for beam distance checks.
-    @param coarse_step Coarse angular step.
-    @param fine_step Fine angular step.
-    @param fine_delta Fine deviation angle.
-    @param disable_intermediate_collision Disable mid-step collision checking.
-
-    @return List of 8-element toolpath step tuples.
->>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8
     """
     steps = []
     previous_angle = starting_angle
