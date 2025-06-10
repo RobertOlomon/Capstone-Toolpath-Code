@@ -26,28 +26,15 @@ from pruning import prune_toolpath_steps
 from scan_utils import reorder_scan_points_by_normals
 import gridpattern
 
-def main(stl_file_path="TorpedoMockup.STL"):
-    """@brief Entry point for toolpath planning demo.
-
-    Demonstrates the complete workflow from loading the part mesh to generating
-    and animating a collision-free cleaning toolpath.
-    """
-
-<<<<<<< HEAD:toolpath.py
 def main(stl_file_path=None, display_animation=True, progress_callback=None):
-=======
->>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8:Main.py
     # --- Debug Flags and High-Level Parameters ---
     np.random.seed(0)
     debug_flip_part = True
     debug_obstacles_only = False
 
     # --- Part and Environment Setup ---
-<<<<<<< HEAD:toolpath.py
     if stl_file_path is None:
         stl_file_path = r"TorpedoMockup.stl"
-=======
->>>>>>> a1c92f2b1a320fddc7718ceea9f2a41a2e0c8cc8:Main.py
 
     part_front_surface_global_origin = np.array([1050, 0, 250])
 
@@ -224,22 +211,19 @@ def main(stl_file_path=None, display_animation=True, progress_callback=None):
             original_part_angle_deg = part_angle_deg # Original part angle
 
             # --- Apply coordinate system transformation for output ---
-            # X_T = -X_C
-            # Y_T = -Y_C
-            # Z_T =  Z_C
+            # Rotate from planner's frame to robot frame. The robot frame is
+            # rotated +90 deg about Z relative to the planner's coordinate
+            # system.
+
+            rot_c_to_t = R.from_euler("z", 90, degrees=True)
 
             # 1. Transform EE position
-            transformed_ee_pos = np.array([-original_ee_pos[0], -original_ee_pos[1], original_ee_pos[2]])
-            
-            qcx, qcy, qcz, qcw = ee_quat_xyzw_arr[0], ee_quat_xyzw_arr[1], ee_quat_xyzw_arr[2], ee_quat_xyzw_arr[3]
-            
-            transformed_quat_x = -qcy
-            transformed_quat_y =  qcx
-            transformed_quat_z =  qcw
-            transformed_quat_w = -qcz
-            
-            # Resulting transformed quaternion in xyzw order:
-            transformed_ee_quat_xyzw = np.array([transformed_quat_x, transformed_quat_y, transformed_quat_z, transformed_quat_w])
+            transformed_ee_pos = rot_c_to_t.apply(original_ee_pos)
+
+            # 2. Transform EE orientation (planner quaternions are [x,y,z,w])
+            ee_rot_c = R.from_quat(ee_quat_xyzw_arr)
+            ee_rot_t = rot_c_to_t * ee_rot_c
+            transformed_ee_quat_xyzw = ee_rot_t.as_quat()
 
             # 3. Transform part angle
             # Rotation 'angle_C' around Y_C is '-angle_C' around Y_T (since Y_T = -Y_C)
