@@ -29,11 +29,19 @@ def reader_task(ser, log_q: queue.Queue):
         if chunk:
             buf.extend(chunk)
         while True:
-            nl = buf.find(b"\n")
-            if nl == -1:
+            # Look for either newline or carriage return
+            pos_nl = buf.find(b"\n")
+            pos_cr = buf.find(b"\r")
+            # Pick the earliest terminator present
+            positions = [p for p in (pos_nl, pos_cr) if p != -1]
+            if not positions:
                 break
+            nl = min(positions)
             line = buf[:nl]
-            del buf[:nl+1]
+            # Drop the terminator and possible paired character ("\r\n"/"\n\r")
+            del buf[:nl + 1]
+            if buf[:1] in (b"\n", b"\r"):
+                del buf[:1]
             now = time.time()
             if now >= next_emit:
                 log_q.put(line.decode(errors="replace").rstrip())
@@ -46,7 +54,7 @@ def wait_for_ack(log_q: queue.Queue):
     while True:
         line = log_q.get()
         print(line)
-        if line.strip() == ACK_MSG:
+        if line.strip().lower().startswith(ACK_MSG.lower()):
             return
 
 def wait_for_ack_timeout(log_q: queue.Queue, timeout: float) -> None:
@@ -61,7 +69,7 @@ def wait_for_ack_timeout(log_q: queue.Queue, timeout: float) -> None:
         except queue.Empty:
             continue
         print(line)
-        if line.strip() == ACK_MSG:
+        if line.strip().lower().startswith(ACK_MSG.lower()):
             return
 
 def send_from_file(path: str, tx: transmitter.Transmitter, log_q: queue.Queue) -> None:
