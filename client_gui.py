@@ -6,7 +6,7 @@ toolpath_gui.py
 
 PyQt 6 desktop application that lets you
 
-1. **Generate** a new tool-path via `Main.main(...)` (after the user selects
+1. **Generate** a new tool-path via `toolpath.main(...)` (after the user selects
    an STL file).
 2. **Preview** the resulting Plotly figure(s)—static or animated—inside a
    `QWebEngineView` (no external browser tab).
@@ -14,7 +14,7 @@ PyQt 6 desktop application that lets you
 4. **Run** the command array on the robot over a serial link.
 
 The file is self-contained apart from several project-specific modules that
-already exist in your repo (`Main`, `robot`, `transmitter`, etc.).
+already exist in your repo (`toolpath`, `robot`, `transmitter`, etc.).
 """
 
 ###############################################################################
@@ -37,6 +37,10 @@ import socket
 import plotly.io as pio
 import serial.tools.list_ports
 
+import transmitter
+from command_sender import reader_task, wait_for_ack 
+from robot import Robot, Laser  
+import toolpath              
 # ---------------------------------------------------------------------------
 # QtWebEngine compatibility shim (PyQt 6 moved QWebEngineSettings)
 # ---------------------------------------------------------------------------
@@ -66,20 +70,12 @@ for _name in (
             # Some attributes vanished or were renamed—ignore quietly.
             pass
 
-# ---------------------------------------------------------------------------
-# Project-specific imports (deferred until after Qt initialises)
-# ---------------------------------------------------------------------------
-import transmitter            # noqa: E402 – your repo
-from command_sender import reader_task, wait_for_ack  # noqa: E402 – your repo
-from robot import Robot, Laser                         # noqa: E402 – your repo
-import Main                                            # noqa: E402 – tool-path generator
-
 ###############################################################################
 # Configurable constants
 ###############################################################################
 
 BAUD = 921_600                       # Baud rate
-CHUCK_DRAWBACK_DISTANCE_MM = 30.0    # How far to pull back on MUST_PULL_BACK
+CHUCK_DRAWBACK_DISTANCE_MM = 500    # How far to pull back on MUST_PULL_BACK
 
 def detect_serial_port() -> Optional[str]:
     """Return the first serial port that looks like an Arduino/ESP32."""
@@ -267,12 +263,12 @@ class PlanWorker(QThread):
     def run(self) -> None:
         try:
             with _suppress_plotly_show():
-                ret = Main.main(
+                ret = toolpath.main(
                     self.stl_path,
                     display_animation=False,
                     progress_callback=self._on_progress,
                 )
-            path, figs = ToolpathGUI._normalize_main_return(ret)
+            path, figs = ClientGUI._normalize_main_return(ret)
             self.finished.emit(path, figs)
         except Exception as exc:  # pragma: no cover - gui
             self.error.emit(str(exc))
@@ -293,12 +289,12 @@ class PlanWorker(QThread):
     def run(self) -> None:
         try:
             with _suppress_plotly_show():
-                ret = Main.main(
+                ret = toolpath.main(
                     self.stl_path,
                     display_animation=False,
                     progress_callback=self._on_progress,
                 )
-            path, figs = ToolpathGUI._normalize_main_return(ret)
+            path, figs = ClientGUI._normalize_main_return(ret)
             self.finished.emit(path, figs)
         except Exception as exc:  # pragma: no cover - gui
             self.error.emit(str(exc))
@@ -310,7 +306,7 @@ class PlanWorker(QThread):
 # Qt main window
 ###############################################################################
 
-class ToolpathGUI(QtWidgets.QWidget):
+class ClientGUI(QtWidgets.QWidget):
     """Main window for planning, previewing and executing tool-paths."""
 
     def __init__(self) -> None:
@@ -364,7 +360,7 @@ class ToolpathGUI(QtWidgets.QWidget):
 
         # Run buttons
         self.btn_run_machine = QtWidgets.QPushButton("Run with machine only")
-        self.btn_run_arm = QtWidgets.QPushButton("Run with arm only (no laser)")
+        self.btn_run_arm = QtWidgets.QPushButton("Run with arm only (laser off)")
         self.btn_run_sync_off = QtWidgets.QPushButton("Run synchronously (laser off)")
         self.btn_run_sync_on = QtWidgets.QPushButton("Run synchronously (laser on)")
         for b in (
@@ -640,7 +636,7 @@ class ToolpathGUI(QtWidgets.QWidget):
 
 def main() -> None:
     app = QtWidgets.QApplication(sys.argv)
-    gui = ToolpathGUI()
+    gui = ClientGUI()
     gui.show()
     sys.exit(app.exec())
 

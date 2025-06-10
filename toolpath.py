@@ -267,7 +267,7 @@ def main(stl_file_path=None, display_animation=True, progress_callback=None):
         display_animation=display_animation,
         collision_manager=env_collision_manager if env_collision_manager and env_collision_manager._objs else None,
         debug_obstacles_only=debug_obstacles_only,
-        split_animation_halves=True,
+        split_animation_halves=False,
         return_figures=True
     )
 
