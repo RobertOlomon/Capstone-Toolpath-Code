@@ -38,7 +38,7 @@ import plotly.io as pio
 import serial.tools.list_ports
 
 import transmitter
-from command_sender import reader_task, wait_for_ack 
+from command_sender import reader_task, wait_for_ack_timeout
 from robot import Robot, Laser  
 import toolpath              
 # ---------------------------------------------------------------------------
@@ -190,10 +190,16 @@ def run_toolpath(
     run_machine: bool = True,
     run_arm: bool = True,
     laser_on: bool = True,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+    ack_timeout: float = 10.0,
 ) -> None:
     """Stream a command array to the robot and/or machine."""
 
     steps = np.load(npy_path)
+
+    total_steps = len(steps)
+    if progress_callback:
+        progress_callback(0, total_steps)
 
     if run_machine:
         if port is None:
@@ -208,7 +214,10 @@ def run_toolpath(
             if not cmd.endswith("\0"):
                 cmd += "\0"
             tx.send_msg(transmitter.CommandMessage(cmd))
-            wait_for_ack(log_q)
+            try:
+                wait_for_ack_timeout(log_q, ack_timeout)
+            except TimeoutError as exc:
+                raise TimeoutError(f"No ACK for '{cmd.strip()}'") from exc
     else:
         def _send(_cmd: str) -> None:
             pass
@@ -218,7 +227,7 @@ def run_toolpath(
     if run_machine:
         _send("G28 A")
 
-    for i, step in enumerate(steps):
+    for i, step in enumerate(steps, 1):
         angle_rad = np.deg2rad(step[7])
         pull_back = bool(step[8])
 
@@ -246,9 +255,16 @@ def run_toolpath(
         if run_machine and pull_back and not next_same_angle_pull:
             _send(f"G01 A{angle_rad:.4f} Y-{drawback_dist} C0")
 
+        if progress_callback:
+            progress_callback(i, total_steps)
+
     if run_machine:
         _send("G01 A0 Y0")
         _send("G01 A0 Y0 C0")
+
+    if progress_callback:
+        progress_callback(total_steps, total_steps)
+
 
 
 class PlanWorker(QThread):
@@ -277,25 +293,38 @@ class PlanWorker(QThread):
         self.progress.emit(current, total)
 
 
-class PlanWorker(QThread):
+class RunWorker(QThread):
     progress = pyqtSignal(int, int)
-    finished = pyqtSignal(object, list)
+    finished = pyqtSignal()
     error = pyqtSignal(str)
 
-    def __init__(self, stl_path: str) -> None:
+    def __init__(
+        self,
+        npy_path: Path,
+        port: Optional[str],
+        *,
+        run_machine: bool,
+        run_arm: bool,
+        laser_on: bool,
+    ) -> None:
         super().__init__()
-        self.stl_path = stl_path
+        self.npy_path = npy_path
+        self.port = port
+        self.run_machine = run_machine
+        self.run_arm = run_arm
+        self.laser_on = laser_on
 
     def run(self) -> None:
         try:
-            with _suppress_plotly_show():
-                ret = toolpath.main(
-                    self.stl_path,
-                    display_animation=False,
-                    progress_callback=self._on_progress,
-                )
-            path, figs = ClientGUI._normalize_main_return(ret)
-            self.finished.emit(path, figs)
+            run_toolpath(
+                self.npy_path,
+                port=self.port,
+                run_machine=self.run_machine,
+                run_arm=self.run_arm,
+                laser_on=self.laser_on,
+                progress_callback=self._on_progress,
+            )
+            self.finished.emit()
         except Exception as exc:  # pragma: no cover - gui
             self.error.emit(str(exc))
 
@@ -443,41 +472,6 @@ class ClientGUI(QtWidgets.QWidget):
         self.loading_timer.stop()
         self.loading_label.setVisible(False)
 
-    def _update_serial_status(self) -> None:
-        self.serial_port = detect_serial_port()
-        if self.serial_port:
-            self.status_label.setText(f"Arduino detected on {self.serial_port}")
-        else:
-            self.status_label.setText("No Arduino/ESP32 detected")
-
-    def _on_plan_progress(self, current: int, total: int) -> None:
-        self.progress.setMaximum(total)
-        self.progress.setValue(current)
-
-    def _on_plan_finished(self, npy_path: Path, figs: list) -> None:
-        self.npy_path = npy_path
-        self.progress.setVisible(False)
-        self.btn_gen.setEnabled(True)
-        self._show_figures(figs)
-
-    def _on_plan_error(self, msg: str) -> None:
-        self.progress.setVisible(False)
-        QtWidgets.QMessageBox.critical(self, "Error", msg)
-
-    def _animate_loading(self) -> None:
-        self._loading_dots = (self._loading_dots + 1) % 4
-        self.loading_label.setText("Loading" + "." * self._loading_dots)
-
-    def _start_loading_animation(self) -> None:
-        self._loading_dots = 0
-        self.loading_label.setText("Loading")
-        self.loading_label.setVisible(True)
-        self.loading_timer.start(300)
-
-    def _stop_loading_animation(self, _ok: bool) -> None:
-        self.loading_timer.stop()
-        self.loading_label.setVisible(False)
-
     # ------------------------------------------------------------------
     # Helper: display figures in the embedded browser
     # ------------------------------------------------------------------
@@ -581,24 +575,36 @@ class ClientGUI(QtWidgets.QWidget):
             b.setEnabled(False)
 
 
-        def _worker() -> None:
-            try:
-                run_toolpath(
-                    self.npy_path,
-                    port=self.serial_port,
-                    run_machine=run_machine,
-                    run_arm=run_arm,
-                    laser_on=laser_on,
-                )
+        self.progress.setVisible(True)
+        self.progress.setValue(0)
+        self.worker = RunWorker(
+            self.npy_path,
+            self.serial_port,
+            run_machine=run_machine,
+            run_arm=run_arm,
+            laser_on=laser_on,
+        )
+        self.worker.progress.connect(self._on_run_progress)
+        self.worker.finished.connect(self._on_run_finished)
+        self.worker.error.connect(self._on_run_error)
+        self.worker.start()
 
-            except Exception as exc:
-                QtWidgets.QMessageBox.critical(self, "Error", str(exc))
-            finally:
-                QtWidgets.QApplication.instance().postEvent(
-                    self, QEvent(QEvent.Type(QEvent.registerEventType()))
-                )
+    def _on_run_progress(self, current: int, total: int) -> None:
+        self.progress.setMaximum(total)
+        self.progress.setValue(current)
 
-        threading.Thread(target=_worker, daemon=True).start()
+    def _on_run_finished(self) -> None:
+        self.progress.setVisible(False)
+        QtWidgets.QApplication.instance().postEvent(
+            self, QEvent(QEvent.Type(QEvent.registerEventType()))
+        )
+
+    def _on_run_error(self, msg: str) -> None:
+        self.progress.setVisible(False)
+        QtWidgets.QMessageBox.critical(self, "Run Error", msg)
+        QtWidgets.QApplication.instance().postEvent(
+            self, QEvent(QEvent.Type(QEvent.registerEventType()))
+        )
 
     def run_machine_only(self) -> None:
         self._execute_run(run_machine=True, run_arm=False, laser_on=False)

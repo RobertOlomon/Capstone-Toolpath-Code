@@ -49,6 +49,21 @@ def wait_for_ack(log_q: queue.Queue):
         if line.strip() == ACK_MSG:
             return
 
+def wait_for_ack_timeout(log_q: queue.Queue, timeout: float) -> None:
+    """Block until the controller reports command completion or timeout."""
+    end_time = time.time() + timeout
+    while True:
+        remaining = end_time - time.time()
+        if remaining <= 0:
+            raise TimeoutError("Timed out waiting for machine acknowledgment")
+        try:
+            line = log_q.get(timeout=remaining)
+        except queue.Empty:
+            continue
+        print(line)
+        if line.strip() == ACK_MSG:
+            return
+
 def send_from_file(path: str, tx: transmitter.Transmitter, log_q: queue.Queue) -> None:
     """Send all commands from the given gcode file."""
     with open(path, "r", encoding="utf-8") as infile:
