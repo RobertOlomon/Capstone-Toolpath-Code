@@ -461,7 +461,7 @@ class ToolpathGUI(QtWidgets.QWidget):
     def _on_plan_finished(self, npy_path: Path, figs: list) -> None:
         self.npy_path = npy_path
         self.progress.setVisible(False)
-        self.btn_run.setEnabled(True)
+        self.btn_gen.setEnabled(True)
         self._show_figures(figs)
 
     def _on_plan_error(self, msg: str) -> None:

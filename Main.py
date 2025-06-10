@@ -34,7 +34,7 @@ def main(stl_file_path=None, display_animation=True, progress_callback=None):
 
     # --- Part and Environment Setup ---
     if stl_file_path is None:
-        stl_file_path = r"C:\Users\robbi\Documents\STL\TorpedoMockup.stl"
+        stl_file_path = r"TorpedoMockup.stl"
 
     part_front_surface_global_origin = np.array([1050, 0, 250])
 
