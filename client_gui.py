@@ -75,7 +75,7 @@ for _name in (
 ###############################################################################
 
 BAUD = 921600                       # Baud rate
-CHUCK_DRAWBACK_DISTANCE_MM = 300    # How far to pull back on MUST_PULL_BACK
+CHUCK_DRAWBACK_DISTANCE_MM = 250    # How far to pull back on MUST_PULL_BACK
 
 def detect_serial_port() -> Optional[str]:
     """Return the first serial port that looks like an Arduino/ESP32."""
@@ -241,9 +241,9 @@ def run_toolpath(
             if run_machine:
                 if pull_back:
                     _send(f"G01 A-{angle_rad:.4f} C5 B0\0")
-                    _send(f"G01 A-{angle_rad:.4f} Y{drawback_dist} C5 B0 \0")
+                    _send(f"G01 A-{angle_rad:.4f} Y{drawback_dist} C5 B0\0")
                 else:
-                    _send(f"G01 A-{angle_rad:.4f} B1 \0")
+                    _send(f"G01 A-{angle_rad:.4f} B1\0")
 
             if run_arm:
                 quat_xyzw = [step[4], step[5], step[6], step[3]]
